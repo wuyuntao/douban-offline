@@ -38,14 +38,16 @@
 
 /* {{{ === Global variables ===  
  */
-var console = unsafeWindow.console || { log: function() {} };
-
+// Constants
+const host = location.protocol + '//' + location.host;
+const href = location.href;
+// Gears
 var server = null;
 var store = null;
 var db = null;
 var workerPoll = null;
-
-var imgLinks = null;
+// Browser
+var console = unsafeWindow.console || { log: function() {} };
 
 /* End of global varaible definitions
  * }}} */
@@ -62,6 +64,7 @@ function initDoubanGM() {
     } else {
         // Do something ...
     }
+    debug();
 }
 
 /* Check if the current page is www.douban.com origin
@@ -142,6 +145,69 @@ function initGears() {
     return unsafeWindow.google.gears;
 }
 
+/* Creates a string of all URLs of media files on the page that will be 
+ * captured.  String is separated by | character
+ */
+function getImageLinks() {
+    const faviconUrl = 'http://lotho.douban.com/favicon.ico';
+    const reFullPath = /^http:\/\/otho\.douban\.com\/.*/;
+    const reAbsolutePath = /^\/.*\.(jpg|gif|png)$/;
+
+    var imgTags = $('img');
+    var imgUrls = [ faviconUrl ];
+
+    $.each(imgTags, function() {
+        var imgSrc = $(this).attr('src');
+        if (reFullPath.test(imgSrc)) {
+            push(imgSrc, imgUrls);
+        } else if (reAbsolutePath.test(imgSrc)) {
+            push(host + imgSrc, imgUrls);
+        }
+    });
+    imgUrls = imgUrls.join('|');
+    
+    return imgUrls;
+}
+
+/* Creates an array of all CSS file URLs on the page that will be captured
+ */
+function getStyleLinks() {
+    const reAbsolutePath = /^\/.*\.css$/;
+
+    var cssTags = $('link[rel="stylesheet"]');
+    var cssUrls = [];
+
+    $.each(cssTags, function() {
+        var cssHref = $(this).attr('href');
+        if (reAbsolutePath.test(cssHref)) {
+            push(host + cssHref, cssUrls);
+        }
+    });
+    cssUrls = cssUrls.join('|');
+
+    return cssUrls;
+}
+
+/* Creates an array of all Javascript file URLs on the page that will be captured
+ */
+function getScriptLinks() {
+    const reAbsolutePath = /^\/.*\.js$/;
+
+    var jsTags = $('script[src]');
+    var jsUrls = [];
+
+    $.each(jsTags, function() {
+        var jsSrc = $(this).attr('src');
+        if (reAbsolutePath.test(jsSrc)) {
+            push(host + jsSrc, jsUrls);
+        }
+    });
+    jsUrls = jsUrls.join('|');
+
+    return jsUrls;
+}
+
+
 function addLoadEvent(func) {
     var oldonload = unsafeWindow.onload;
     if (typeof unsafeWindow.onload != 'function') {
@@ -152,6 +218,10 @@ function addLoadEvent(func) {
             func();
         };
     }
+}
+
+function push(item, array) {
+    if ($.inArray(item, array) == -1) array.push(item);
 }
 
 /* End of general functions
@@ -165,3 +235,12 @@ if (isMedia()) {
     addLoadEvent(initDoubanGM);
 }
 /* }}} */
+
+/* {{{ === Debug ===
+ */
+function debug() {
+    console.log(getImageLinks());       // ...Passed
+    console.log(getStyleLinks());       // ...Passed
+    console.log(getScriptLinks());      // ...Passed
+}
+/* {{{ */

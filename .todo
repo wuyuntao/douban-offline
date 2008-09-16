@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<todo version="0.1.20">
+    <note priority="high" time="1221578414">
+        获取纯HTML豆瓣页面
+    </note>
+    <note priority="medium" time="1221578480">
+        获取豆瓣CSS、JS
+    </note>
+    <note priority="medium" time="1221578490">
+        获取豆瓣图片
+    </note>
+</todo>

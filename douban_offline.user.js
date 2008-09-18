@@ -32,6 +32,8 @@
 // @description     A Greasemonkey script allows you to use douban offline and backup your collections
 // @include         http://www.douban.com/*
 // @include         http://otho.douban.com/*
+// @resource        favicon http://lotho.douban.com/favicon.ico
+// @require         http://www.douban.com/js/jquery5685.js
 // ==/UserScript==
 //
 // }}}
@@ -56,21 +58,22 @@ var console = unsafeWindow.console || { log: function() {} };
  * Initialize jQuery and Gears for www.douban.com
  */
 function initDoubanGM() {
-    if (typeof unsafeWindow.jQuery != 'undefined') 
-        window.$ = unsafeWindow.jQuery;
     window.$G = new initGears();
     if (!server) {
         triggerAllowDoubanDialog();
     } else {
         // Do something ...
+        var urls = getExternalLinks();
+        capture(urls.doubanUrls);
+        initFrame(urls.othoUrls);
     }
-    debug();
+    // debug();
 }
 
 /* Check if the current page is www.douban.com origin
  */
-function isDouban() {
-    return (location.href.indexOf('www.douban.com') != -1)
+function isDouban(url) {
+    return (url.indexOf('www.douban.com') != -1)
 }
 
 /* This is called if the user hasn't allowed www.douban.com to use Gears
@@ -90,20 +93,21 @@ function triggerAllowDoubanDialog() {
  * Initialize jQuery and Gears for otho.douban.com
  */
 function initOthoGM() {
-    if (typeof unsafeWindow.jQuery != 'undefined') 
-        window.$ = unsafeWindow.jQuery;
     window.$G = new initGears();
     if (!server) {
         triggerAllowOthoDialog();
     } else {
         // Do something ...
+        var othoUrls = location.href.split('#')[1];
+        var urls = othoUrls.split("|");
+        capture(urls);
     }
 }
 
 /* Check if the current page is www.douban.com origin
  */
-function isMedia() {
-    return (location.href.indexOf('otho.douban.com') != -1)
+function isMedia(url) {
+    return (url.indexOf('otho.douban.com') != -1)
 }
 
 /* This is called if the user hasn't allowed otho.douban.com to use Gears
@@ -125,14 +129,16 @@ function initGears() {
     if (!unsafeWindow.google) unsafeWindow.google = {};
     if (!unsafeWindow.google.gears) {
         try {
-            unsafeWindow.google.gears = { factory: new GearsFactory() };
+            unsafeWindow.google.gears = {};
+            unsafeWindow.google.gears.factory = unsafeWindow.GearsFactory();
+            // unsafeWindow.google.gears = { factory: new GearsFactory() };
         } catch(e) {
             alert("Problem in initializing Gears: " + e.message)
         }
     }
     try {
         server = unsafeWindow.google.gears.factory.create('beta.localserver');
-        store = server.creatStore('douban_offline');
+        store = server.createStore('douban_offline');
         db = unsafeWindow.google.gears.factory.create('beta.database');
         if (db) {
             db.open('douban_offline');
@@ -140,21 +146,36 @@ function initGears() {
                        ' (Content VARCHAR(255), URL VARCHAR(255), TransactionID INT)');
         }
     } catch(e) {
-        // Error log
+        console.log("Problem in initializing database: " + e.message);
     }
     return unsafeWindow.google.gears;
+}
+
+/* Initialize an iFrame for downloading
+ */
+function initFrame(urls) {
+    if (typeof urls != 'string') urls = urls.join('|');
+    var iFrame = $('iframe#douban-offline');
+    if (!iFrame.length) {
+        var src = 'http://otho.douban.com/' + ( urls ? '#' + urls : '' );
+        iFrame = $('<iframe></iframe>');
+        iFrame.attr('src', src).attr('id', 'douban-offline')
+              .css({ 'display': 'none' }).appendTo($('body'));
+    }
+    // console.log(iFrame.attr('src'));
+    return iFrame;
 }
 
 /* Creates a string of all URLs of media files on the page that will be 
  * captured.  String is separated by | character
  */
 function getImageLinks() {
-    const faviconUrl = 'http://lotho.douban.com/favicon.ico';
+    // const faviconUrl = 'http://lotho.douban.com/favicon.ico';
     const reFullPath = /^http:\/\/otho\.douban\.com\/.*/;
     const reAbsolutePath = /^\/.*\.(jpg|gif|png)$/;
 
     var imgTags = $('img');
-    var imgUrls = [ faviconUrl ];
+    var imgUrls = [];
 
     $.each(imgTags, function() {
         var imgSrc = $(this).attr('src');
@@ -164,8 +185,7 @@ function getImageLinks() {
             push(host + imgSrc, imgUrls);
         }
     });
-    imgUrls = imgUrls.join('|');
-    
+    // imgUrls = imgUrls.join('|');
     return imgUrls;
 }
 
@@ -183,8 +203,7 @@ function getStyleLinks() {
             push(host + cssHref, cssUrls);
         }
     });
-    cssUrls = cssUrls.join('|');
-
+    // cssUrls = cssUrls.join('|');
     return cssUrls;
 }
 
@@ -202,11 +221,21 @@ function getScriptLinks() {
             push(host + jsSrc, jsUrls);
         }
     });
-    jsUrls = jsUrls.join('|');
-
+    // jsUrls = jsUrls.join('|');
     return jsUrls;
 }
 
+function getExternalLinks() {
+    var doubanUrls = [ location.href ];
+    var othoUrls = [];
+
+    doubanUrls = doubanUrls.concat(getStyleLinks(), getScriptLinks());
+    $.each(getImageLinks(), function() {
+        if (isDouban(this)) doubanUrls.push(this.toString());
+        else othoUrls.push(this.toString());
+    });
+    return { 'doubanUrls': doubanUrls, 'othoUrls': othoUrls }
+}
 
 function addLoadEvent(func) {
     var oldonload = unsafeWindow.onload;
@@ -224,12 +253,44 @@ function push(item, array) {
     if ($.inArray(item, array) == -1) array.push(item);
 }
 
+/* Capture specified page
+ */
+function capturePage(url) {
+    if (store.isCaptured(url)) {
+        // is captured
+        console.log("URL: " + url + ", is captured");
+    } else {
+        urls = [ location.href ];
+        $.extend(urls, getExternalLinks());
+    }
+}
+
+/* Capture cross origin page by iframe
+ */
+function captureExternal(url) {
+
+}
+
+/* Capture page directly
+ */
+function capture(url) {
+    try {
+        store.capture(url, function(url, success, captureId) {
+            console.log("URL: " + url + ", " + ( success ? "" : "not " ) +
+                        "captured by ID " + captureId)
+        });
+    } catch(e) {
+        console.log("Cannot find store: " + e.message);
+    }
+}
+
 /* End of general functions
  * }}} */
 
 /* {{{ === Main entry ===  
  */
-if (isMedia()) {
+if (isMedia(location.href)) {
+    // console.log('Goes here');
     addLoadEvent(initOthoGM);
 } else {
     addLoadEvent(initDoubanGM);
@@ -239,8 +300,23 @@ if (isMedia()) {
 /* {{{ === Debug ===
  */
 function debug() {
-    console.log(getImageLinks());       // ...Passed
-    console.log(getStyleLinks());       // ...Passed
-    console.log(getScriptLinks());      // ...Passed
+    /* Test for get external links 
+    console.log(getImageLinks());                           // ...Passed
+    console.log(getStyleLinks());                           // ...Passed
+    console.log(getScriptLinks());                          // ...Passed
+    console.log(getExternalLinks().doubanUrls);             // ...Passed
+    console.log(getExternalLinks().othoUrls);               // ...Passed
+     */
+
+    /* Test for same origin resources
+    capture(getExternalLinks().doubanUrls); 
+    */
+
+    /* Test for cross origin resources
+    var testUrl = "http://otho.douban.com/mpic/s3181630.jpg";
+    $('body').append('<iframe id="grabPicture" src="http://otho.douban.com/"></iframe>');
+    $('#grabPicture').src = testUrl;
+    capture(testUrl);
+     */
 }
 /* {{{ */

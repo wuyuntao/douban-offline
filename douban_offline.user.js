@@ -45,16 +45,16 @@ const host = location.protocol + '//' + location.host;
 const href = location.href;
 const doubanTypeDict = {
     all: { id: 'all', name: '全部',
-           regex: /.*/
+           regex: /^$/
     },
     subject: { id: 'subject', name: '条目',
-               regex: /http:\/\/www\.douban\.com\/subject\/.*/
+               regex: /^http:\/\/www\.douban\.com\/subject\/.*/
     },
     group: { id: 'group', name: '小组',
-             regex: /http:\/\/www\.douban\.com\/group\/.*/
+             regex: /^http:\/\/www\.douban\.com\/group\/.*/
     },
     people: { id: 'people', name: '用户',
-              regex: /http:\/\/www\.douban\.com\/people\/.*/
+              regex: /^http:\/\/www\.douban\.com\/people\/.*/
     },
 };
 const doubanOfflineStyle = "";
@@ -77,6 +77,7 @@ var console = unsafeWindow.console || { log: function() {} };
  * ``initGears`` used by ``initDoubanGears`` and ``initOthoGears``
  */
 function initOffline() {
+    window.$G = new initGears();
     createOfflineStatus();
     addOfflineButton();
     debug();
@@ -90,7 +91,7 @@ function initControl() {
         triggerAllowDoubanDialog();
     } else {
         console.log("Start capturing page. URL: " + url);
-        capturePage(url);
+        capturePage(document.title, url);
     }
     console.log('Douban control initialized');
 }
@@ -137,7 +138,7 @@ function initGears() {
         if (db) {
             db.open('douban_offline');
             db.execute('CREATE TABLE IF NOT EXISTS DoubanOffline' +
-                       ' (Content VARCHAR(255), URL VARCHAR(255), TransactionID INT)');
+                ' (Title VARCHAR(255), URL VARCHAR(255), Type VARCHAR(255), TransactionID INT)');
         }
     } catch(e) {
         console.log("Problem in initializing database: " + e.message);
@@ -198,16 +199,16 @@ function triggerAllowOthoDialog() {
  * ``initFrame`` used by ``initDoubanFrame`` and ``initOthoFrame``
  */
 function initControlFrame(doubanUrl) {
-    return initFrame('#offline-control', doubanUrl + '#douban_offline', '');
+    return initFrame('offline-control', doubanUrl + '#douban_offline_control', '');
 }
 
 function initDoubanFrame(downloadUrls) {
-    return initFrame('#douban-offline', 'http://www.douban.com/douban_offline/',
+    return initFrame('douban-offline', 'http://www.douban.com/douban_offline/',
                      downloadUrls);
 }
 
 function initOthoFrame(downloadUrls) {
-    return initFrame('#otho-offline', 'http://otho.douban.com/douban_offline/',
+    return initFrame('otho-offline', 'http://otho.douban.com/douban_offline/',
                      downloadUrls);
 }
 
@@ -300,14 +301,15 @@ function getScriptLinks() {
 
 /* === {{{ Page capture ===  
  */
-function capturePage(url) {
+function capturePage(title, url) {
     if (store.isCaptured(url)) {
         // is captured
-        console.log("URL: " + url + ", is captured");
+        console.log("URL: " + url + " is already captured");
     } else {
         var urls = getLinks();
         initDoubanFrame(urls.doubanUrls);
         initOthoFrame(urls.othoUrls);
+        saveInDatabase(title, url);
     }
 }
 
@@ -325,7 +327,59 @@ function capture(url) {
 
 /* {{{ === Datebase opertions ===  
  */
+function saveInDatabase(title, url) {
+    var maxId = 0;
+    var rowId = null;
+    var type = getType(url);
+    try {
+        var rs = db.execute('SELECT MAX(TransactionID) from DoubanOffline');
+        if (rs.isValidRow() && rs.field(0) != null) {
+            maxId = rs.field(0);
+        }
+    } finally {
+        rs.close()
+    }
+    maxId++;
 
+    console.log("<[" + type + "] " + title + ": \"" + url +
+                "\"> saved in transaction ID: " + maxId);
+    var rs = db.execute('INSERT INTO DoubanOffline VALUES (?, ?, ?, ?)',
+        [title, url, type, maxId]);
+    try {
+        rs = db.execute('SELECT MAX(rowid) from DoubanOffline');
+        if (rs.isValidRow()) {
+            rowId = rs.field(0);
+        }
+    } finally {
+        rs.close();
+    }
+    return rowId;
+}
+
+function getByType(type, start, limit) {
+    var results = []
+    try {
+        if (type == 'all') {
+            rs = db.execute('SELECT * FROM DoubanOffline ORDER BY TransactionID DESC ' +
+                           'LIMIT ? OFFSET ?',
+                           [limit, start]);
+        } else {
+            rs = db.execute('SELECT * FROM DoubanOffline WHERE Type = ? ' +
+                            'ORDER BY TransactionID DESC LIMIT ? OFFSET ?',
+                            [type, limit, start]);
+        }
+        while (rs.isValidRow()) {
+            var result = { title: rs.field(0), url: rs.field(1),
+                           type: rs.field(2), id: rs.field(3) };
+            // console.log(result);
+            results.push(result);
+            rs.next();
+        }
+    } finally {
+        rs.close();
+    }
+    return results;
+}
 /* }}} */
 
 /* {{{ === User interface ===  
@@ -342,7 +396,6 @@ function addOfflineButton() {
 
 function toggleOfflineStatus() {
     var offlineStatus = $('#douban-offline-status');
-    console.log('offline status: ' + offlineStatus.length);
     offlineStatus.slideToggle('normal');
 }
 
@@ -355,7 +408,8 @@ function createOfflineStatus() {
     var title = $('<h2>豆瓣离线</h2>');
     var insideWrapper = $('<div></div>');
     var typeListWrapper = $('<ul id="douban-offline-type-list"></ul>');
-    var linkListWrapper = $('<ul id="douban-offline-link-list"></ul>');
+    var linkTableWrapper = $('<table id="douban-offline-link-table"><tbody></tbody></table>');
+    var linkTableHeader = $('<tr><th>ID</th><th>标题</th><th>链接</th><th>类别</th></tr>');
 
     $.each(doubanTypeDict, function() {
         var item = $('<li></li>');
@@ -365,7 +419,20 @@ function createOfflineStatus() {
         item.append(link).appendTo(typeListWrapper);
     });
 
-    insideWrapper.append(typeListWrapper).append(linkListWrapper)
+    var results = getByType('all', 0, 10);
+    $.each(results, function() {
+        var item = $('<tr></tr>');
+        item.append('<td>' + this.id + '</td>')
+            .append('<td>' + this.title + '</td>')
+            .append('<td>' + this.url + '</td>')
+            .append('<td>' + this.type + '</td>')
+            .attr('id', 'douban-offline-' + this.id)
+            .attr('class', 'douban-offline-link')
+            .appendTo(linkTableWrapper);
+    });
+
+    linkTableWrapper.prepend(linkTableHeader);
+    insideWrapper.append(typeListWrapper).append(linkTableWrapper)
                  .append('<div class="clear"></div>')
     wrapper.append(title).append(insideWrapper).insertAfter($('#status'))
            .hide();
@@ -375,16 +442,13 @@ function createOfflineStatus() {
 
 /* {{{ === General functions ===  
  */
-function addLoadEvent(func) {
-    var oldonload = unsafeWindow.onload;
-    if (typeof unsafeWindow.onload != 'function') {
-        unsafeWindow.onload = func;
-    } else {
-        unsafeWindow.onload = function() {
-            if (oldonload) oldonload();
-            func();
-        };
-    }
+function getType(url) {
+    var type = 'all'
+    $.each(doubanTypeDict, function() {
+        if (this.regex.test(url)) type = this.id;
+    });
+    console.log(type);
+    return type;
 }
 
 function push(item, array) {
@@ -423,9 +487,14 @@ function debug() {
 
     /* Test capture whole page (pass)
     window.$G = new initGears();
-    capturePage('http://www.douban.com/subject/2968728/');
+    capturePage('Test capture', 'http://www.douban.com/subject/1458897/');
      */
+
+    /* Test setup download 
+    initControlFrame('http://www.douban.com/subject/1199198/');
+     */
+
 }
-/* {{{ */
+/* }}} */
 
 // vim: set ft=conf foldmethod=marker et :

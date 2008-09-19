@@ -18,7 +18,19 @@
     <note priority="medium" time="1221749351" done="1221825482">
         iframe C: 抓取www.douban.com
     </note>
-    <note priority="medium" time="1221749640">
+    <note priority="medium" time="1221749640" done="1221834777">
         数据库: Title, URL, Type, ID
+        <comment>
+            y
+        </comment>
+    </note>
+    <note priority="medium" time="1221834802">
+        下拉样式表
+    </note>
+    <note priority="medium" time="1221834810">
+        分类选择
+    </note>
+    <note priority="medium" time="1221835050">
+        背景抓取
     </note>
 </todo>

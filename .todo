@@ -1,12 +1,24 @@
 <?xml version="1.0"?>
 <todo version="0.1.20">
-    <note priority="high" time="1221578414">
+    <note priority="high" time="1221578414" done="1221749209">
         获取纯HTML豆瓣页面
     </note>
-    <note priority="medium" time="1221578480">
+    <note priority="medium" time="1221578480" done="1221749212">
         获取豆瓣CSS、JS
     </note>
-    <note priority="medium" time="1221578490">
+    <note priority="medium" time="1221578490" done="1221749213">
         获取豆瓣图片
+    </note>
+    <note priority="medium" time="1221749309" done="1221825478">
+        iframe A: 获取图片，样式表，脚本链接
+    </note>
+    <note priority="medium" time="1221749328" done="1221825480">
+        iframe B: 抓取otho.douban.com
+    </note>
+    <note priority="medium" time="1221749351" done="1221825482">
+        iframe C: 抓取www.douban.com
+    </note>
+    <note priority="medium" time="1221749640">
+        数据库: Title, URL, Type, ID
     </note>
 </todo>

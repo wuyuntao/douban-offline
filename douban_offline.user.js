@@ -1,4 +1,4 @@
-// {{{ === License ===  
+// {{{ === License and metadata ===  
 // Douban Offline
 // A Greasemonkey script allows you to use douban offline and backup your collections
 // version 0.1
@@ -43,88 +43,82 @@
 // Constants
 const host = location.protocol + '//' + location.host;
 const href = location.href;
+const doubanTypeDict = {
+    all: { id: 'all', name: '全部',
+           regex: /.*/
+    },
+    subject: { id: 'subject', name: '条目',
+               regex: /http:\/\/www\.douban\.com\/subject\/.*/
+    },
+    group: { id: 'group', name: '小组',
+             regex: /http:\/\/www\.douban\.com\/group\/.*/
+    },
+    people: { id: 'people', name: '用户',
+              regex: /http:\/\/www\.douban\.com\/people\/.*/
+    },
+};
+const doubanOfflineStyle = "";
+
 // Gears
 var server = null;
 var store = null;
 var db = null;
 var workerPoll = null;
+
 // Browser
 var console = unsafeWindow.console || { log: function() {} };
+/* }}} */
 
-/* End of global varaible definitions
- * }}} */
-
-/* {{{ === Douban functions ===  
- * Initialize jQuery and Gears for www.douban.com
+/* {{{ === Initialization ===  
+ * ``initOffline`` for most pages
+ * ``initControl`` for the control iframe
+ * ``initDoubanGears`` for the download iframe for www.douban.com
+ * ``initOthoGears`` for the download iframe for otho.douban.com
+ * ``initGears`` used by ``initDoubanGears`` and ``initOthoGears``
  */
-function initDoubanGM() {
+function initOffline() {
+    createOfflineStatus();
+    addOfflineButton();
+    debug();
+    console.log('Douban offline initialized');
+}
+
+function initControl() {
+    var url = location.href.match(/(.*)#douban_offline_control$/)[1]; 
     window.$G = new initGears();
     if (!server) {
         triggerAllowDoubanDialog();
     } else {
-        // Do something ...
-        var urls = getExternalLinks();
-        capture(urls.doubanUrls);
-        initFrame(urls.othoUrls);
+        console.log("Start capturing page. URL: " + url);
+        capturePage(url);
     }
-    // debug();
+    console.log('Douban control initialized');
 }
 
-/* Check if the current page is www.douban.com origin
- */
-function isDouban(url) {
-    return (url.indexOf('www.douban.com') != -1)
+function initDoubanGears() {
+    window.$G = new initGears();
+    if (!server) {
+        triggerAllowDoubanDialog();
+    } else {
+        console.log('Douban gears initialized');
+        var doubanUrls = location.href.split('#')[1];
+        var urls = doubanUrls.split('|');
+        capture(urls);
+    }
 }
 
-/* This is called if the user hasn't allowed www.douban.com to use Gears
- */
-function triggerAllowDoubanDialog() {
-    window.addEventListener("load", function() {
-        $G.factory.create('beta.localserver', '1.0');
-        location.href = location.href;
-        return false;
-    }, true);
-}
-
-/* End of www.douban.com functions
- * }}} */
-
-/* {{{ === Media functions ===  
- * Initialize jQuery and Gears for otho.douban.com
- */
-function initOthoGM() {
+function initOthoGears() {
     window.$G = new initGears();
     if (!server) {
         triggerAllowOthoDialog();
     } else {
-        // Do something ...
+        console.log('Otho gears initialized');
         var othoUrls = location.href.split('#')[1];
         var urls = othoUrls.split("|");
         capture(urls);
     }
 }
 
-/* Check if the current page is www.douban.com origin
- */
-function isMedia(url) {
-    return (url.indexOf('otho.douban.com') != -1)
-}
-
-/* This is called if the user hasn't allowed otho.douban.com to use Gears
- */
-function triggerAllowOthoDialog() {
-    window.addEventListener("load", function() {
-        $G.factory.create('beta.localserver', '1.0');
-        return false;
-    }, true);
-}
-
-/* End of otho.douban.com functions
- * }}} */
-
-/* {{{ === General functions ===  
- * Initialize Gears for both www.douban.com and otho.douban.com
- */
 function initGears() {
     if (!unsafeWindow.google) unsafeWindow.google = {};
     if (!unsafeWindow.google.gears) {
@@ -151,24 +145,102 @@ function initGears() {
     return unsafeWindow.google.gears;
 }
 
-/* Initialize an iFrame for downloading
+/* }}} */
+
+/* {{{ === Page check ===  
+ * ``isControl`` for the control iframe
+ * ``isDoubanGears`` for the download iframe for www.douban.com
+ * ``isOthoGears`` for the download iframe for otho.douban.com
  */
-function initFrame(urls) {
-    if (typeof urls != 'string') urls = urls.join('|');
-    var iFrame = $('iframe#douban-offline');
+/* Check if the current frame is control
+ */
+function isControl(url) {
+    return /www\.douban\.com.*#douban_offline_control$/.test(url);
+}
+
+/* Check if the current page is www.douban.com origin
+ */
+function isDouban(url) {
+    return /www\.douban\.com.*#douban_offline_download$/.test(url);
+}
+
+function isOtho(url) {
+    return /otho\.douban\.com.*#douban_offline_download$/.test(url);
+}
+/* }}} */
+
+/* {{{ === Permission dialog trigger ===  
+ * ``triggerAllowDoubanDialog`` is called if the user hasn't allowed
+ * www.douban.com to use Gears
+ * ``triggerAllowOthoDialog`` is called if the user hasn't allowed
+ * otho.douban.com to use Gears
+ */
+function triggerAllowDoubanDialog() {
+    window.addEventListener("load", function() {
+        $G.factory.create('beta.localserver', '1.0');
+        location.href = location.href;
+        return false;
+    }, true);
+}
+
+function triggerAllowOthoDialog() {
+    window.addEventListener("load", function() {
+        $G.factory.create('beta.localserver', '1.0');
+        return false;
+    }, true);
+}
+/* }}} */
+
+/* {{{ === Iframe initialization ===  
+/* ``initControlFrame`` initializes iframe for control downloads
+/* ``initDoubanFrame`` initializes iframe for downloads on www.douban.com
+/* ``initOthoFrame`` initializes iframe for downloads on otho.douban.com
+ * ``initFrame`` used by ``initDoubanFrame`` and ``initOthoFrame``
+ */
+function initControlFrame(doubanUrl) {
+    return initFrame('#offline-control', doubanUrl + '#douban_offline', '');
+}
+
+function initDoubanFrame(downloadUrls) {
+    return initFrame('#douban-offline', 'http://www.douban.com/douban_offline/',
+                     downloadUrls);
+}
+
+function initOthoFrame(downloadUrls) {
+    return initFrame('#otho-offline', 'http://otho.douban.com/douban_offline/',
+                     downloadUrls);
+}
+
+function initFrame(frameId, frameUrl, downloadUrls) {
+    if (downloadUrls && typeof downloadUrls != 'string')
+        downloadUrls = downloadUrls.join('|');
+    var iFrame = $(frameId);
     if (!iFrame.length) {
-        var src = 'http://otho.douban.com/' + ( urls ? '#' + urls : '' );
+        var src = frameUrl + ( downloadUrls ? '#' + downloadUrls + '#douban_offline_download' : '' );
         iFrame = $('<iframe></iframe>');
-        iFrame.attr('src', src).attr('id', 'douban-offline')
+        iFrame.attr('src', src).attr('id', frameId)
               .css({ 'display': 'none' }).appendTo($('body'));
     }
     // console.log(iFrame.attr('src'));
     return iFrame;
 }
 
-/* Creates a string of all URLs of media files on the page that will be 
- * captured.  String is separated by | character
+/* }}} */
+
+/* {{{ === Link parser ===  
  */
+function getLinks() {
+    var doubanUrls = [ location.href ];
+    var othoUrls = [];
+
+    doubanUrls = doubanUrls.concat(getStyleLinks(), getScriptLinks());
+    $.each(getImageLinks(), function() {
+        if (/www\.douban\.com/.test(this)) doubanUrls.push(this.toString());
+        else othoUrls.push(this.toString());
+    });
+    return { 'doubanUrls': doubanUrls, 'othoUrls': othoUrls }
+}
+
 function getImageLinks() {
     // const faviconUrl = 'http://lotho.douban.com/favicon.ico';
     const reFullPath = /^http:\/\/otho\.douban\.com\/.*/;
@@ -224,19 +296,85 @@ function getScriptLinks() {
     // jsUrls = jsUrls.join('|');
     return jsUrls;
 }
+/* }}} */
 
-function getExternalLinks() {
-    var doubanUrls = [ location.href ];
-    var othoUrls = [];
-
-    doubanUrls = doubanUrls.concat(getStyleLinks(), getScriptLinks());
-    $.each(getImageLinks(), function() {
-        if (isDouban(this)) doubanUrls.push(this.toString());
-        else othoUrls.push(this.toString());
-    });
-    return { 'doubanUrls': doubanUrls, 'othoUrls': othoUrls }
+/* === {{{ Page capture ===  
+ */
+function capturePage(url) {
+    if (store.isCaptured(url)) {
+        // is captured
+        console.log("URL: " + url + ", is captured");
+    } else {
+        var urls = getLinks();
+        initDoubanFrame(urls.doubanUrls);
+        initOthoFrame(urls.othoUrls);
+    }
 }
 
+function capture(url) {
+    try {
+        store.capture(url, function(url, success, captureId) {
+            console.log("URL: " + url + ", " + ( success ? "" : "not " ) +
+                        "captured by ID " + captureId)
+        });
+    } catch(e) {
+        console.log("Cannot find store: " + e.message);
+    }
+}
+/* }}} */
+
+/* {{{ === Datebase opertions ===  
+ */
+
+/* }}} */
+
+/* {{{ === User interface ===  
+ */
+function addOfflineButton() {
+    var button = $('<a id="douban-offline-button">离线</a>');
+    button.css({ 'cursor': 'pointer' });
+    button.click(function() {
+        toggleOfflineStatus();
+        return false;
+    });
+    $('#status').append(button);
+}
+
+function toggleOfflineStatus() {
+    var offlineStatus = $('#douban-offline-status');
+    console.log('offline status: ' + offlineStatus.length);
+    offlineStatus.slideToggle('normal');
+}
+
+function hideOfflineStatus() {
+    $('#douban-offline-status').slideUp('normal');
+}
+
+function createOfflineStatus() {
+    var wrapper = $('<div id="douban-offline-status"></div>');
+    var title = $('<h2>豆瓣离线</h2>');
+    var insideWrapper = $('<div></div>');
+    var typeListWrapper = $('<ul id="douban-offline-type-list"></ul>');
+    var linkListWrapper = $('<ul id="douban-offline-link-list"></ul>');
+
+    $.each(doubanTypeDict, function() {
+        var item = $('<li></li>');
+        var link = $('<span></span>');
+        link.attr('id', 'douban-offline-type-' + this.id)
+            .html(this.name);
+        item.append(link).appendTo(typeListWrapper);
+    });
+
+    insideWrapper.append(typeListWrapper).append(linkListWrapper)
+                 .append('<div class="clear"></div>')
+    wrapper.append(title).append(insideWrapper).insertAfter($('#status'))
+           .hide();
+}
+
+/* }}} */
+
+/* {{{ === General functions ===  
+ */
 function addLoadEvent(func) {
     var oldonload = unsafeWindow.onload;
     if (typeof unsafeWindow.onload != 'function') {
@@ -252,71 +390,42 @@ function addLoadEvent(func) {
 function push(item, array) {
     if ($.inArray(item, array) == -1) array.push(item);
 }
-
-/* Capture specified page
- */
-function capturePage(url) {
-    if (store.isCaptured(url)) {
-        // is captured
-        console.log("URL: " + url + ", is captured");
-    } else {
-        urls = [ location.href ];
-        $.extend(urls, getExternalLinks());
-    }
-}
-
-/* Capture cross origin page by iframe
- */
-function captureExternal(url) {
-
-}
-
-/* Capture page directly
- */
-function capture(url) {
-    try {
-        store.capture(url, function(url, success, captureId) {
-            console.log("URL: " + url + ", " + ( success ? "" : "not " ) +
-                        "captured by ID " + captureId)
-        });
-    } catch(e) {
-        console.log("Cannot find store: " + e.message);
-    }
-}
-
-/* End of general functions
- * }}} */
+/* }}} */
 
 /* {{{ === Main entry ===  
  */
-if (isMedia(location.href)) {
-    // console.log('Goes here');
-    addLoadEvent(initOthoGM);
-} else {
-    addLoadEvent(initDoubanGM);
-}
+$(function() {
+    var url = location.href;
+    if (isControl(url)) initControl();
+    else if (isDouban(url)) initDoubanGears();
+    else if (isOtho(url)) initOthoGears();
+    else initOffline();
+});
 /* }}} */
 
-/* {{{ === Debug ===
+/* {{{ === Debug ===  
  */
 function debug() {
-    /* Test for get external links 
-    console.log(getImageLinks());                           // ...Passed
-    console.log(getStyleLinks());                           // ...Passed
-    console.log(getScriptLinks());                          // ...Passed
-    console.log(getExternalLinks().doubanUrls);             // ...Passed
-    console.log(getExternalLinks().othoUrls);               // ...Passed
+    /* Test for get external links (pass)
+    console.log(getImageLinks());
+    console.log(getStyleLinks());
+    console.log(getScriptLinks());
+    console.log(getLinks().doubanUrls);
+    console.log(getLinks().othoUrls);
      */
 
-    /* Test for same origin resources
-    capture(getExternalLinks().doubanUrls); 
-    */
+    /* Test page type (pass)
+    console.log(isControl('http://www.douban.com/#douban_offline_control'));
+    console.log(isControl('http://www.douban.com/#contacts#douban_offline_control'));
+    console.log(isDouban('http://www.douban.com/contacts/#douban_offline_download'));
+    console.log(isOtho('http://otho.douban.com/pic/u12312-3.jpg#douban_offline_download'));
+     */
 
-    /* Test for cross origin resources
-    var testUrl = "http://otho.douban.com/mpic/s3181630.jpg";
-    $('body').append('<iframe id="grabPicture" src="http://otho.douban.com/"></iframe>');
-    $('#grabPicture').src = testUrl;
-    capture(testUrl);
+    /* Test capture whole page (pass)
+    window.$G = new initGears();
+    capturePage('http://www.douban.com/subject/2968728/');
      */
 }
 /* {{{ */
+
+// vim: set ft=conf foldmethod=marker et :

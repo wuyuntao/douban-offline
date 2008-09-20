@@ -24,13 +24,16 @@
             y
         </comment>
     </note>
-    <note priority="medium" time="1221834802">
+    <note priority="medium" time="1221834802" done="1221883699">
         下拉样式表
     </note>
-    <note priority="medium" time="1221834810">
+    <note priority="medium" time="1221834810" done="1221883702">
         分类选择
     </note>
-    <note priority="medium" time="1221835050">
+    <note priority="medium" time="1221835050" done="1221883708">
         背景抓取
+    </note>
+    <note priority="medium" time="1221838269" done="1221883710">
+        删除存储
     </note>
 </todo>

@@ -57,7 +57,26 @@ const doubanTypeDict = {
               regex: /^http:\/\/www\.douban\.com\/people\/.*/
     },
 };
-const doubanOfflineStyle = "";
+const doubanOfflineStyle = 
+    "#douban-offline-status { margin: 0 20px 3px; border: 1px solid #d5f5d5; border-width: 0 2px 2px; -moz-border-radius-bottomright: 8px; -moz-border-radius-bottomleft: 8px; } " + 
+    "#douban-offline-status h2 { padding: 2px 20px; margin: 0; border-bottom: 2px solid #eef9eb; }" +
+    "#douban-offline-type-list { text-align: left; display: block; float: left; width: 5%; margin: 5px 0 30px 15px; }" +
+    "#douban-offline-link-table { display: block; float: right; width: 92%; margin: 3px; }" +
+    "#douban-offline-link-table th { font-weight: bold; text-align: center; background: #eef9eb }" +
+    "#douban-offline-link-table th.id { width: 4%; }" +
+    "#douban-offline-link-table th.title { width: 50%; }" +
+    "#douban-offline-link-table th.url { width: 32%; }" +
+    "#douban-offline-link-table th.type { width: 8%; }" +
+    "#douban-offline-link-table th.delete { width: 4%; }" +
+    "#douban-offline-link-table td.id { width: 4%; text-align: left; }" +
+    "#douban-offline-link-table td.title { width: 50%; overflow-x: hidden; }" +
+    "#douban-offline-link-table td.url { width: 32%; overflow-x: hidden; }" +
+    "#douban-offline-link-table td.type { width: 8%; text-align: center; }" +
+    "#douban-offline-link-table td.delete { width: 4%; text-align: center; }" +
+    "#douban-offline-status span.button { cursor: pointer; color: #336699; text-decoration: underline; }" +
+    "#douban-offline-capture { display: block; float: right; margin: 3px 3px 0 0; }" +
+    ""
+;
 
 // Gears
 var server = null;
@@ -80,8 +99,12 @@ function initOffline() {
     window.$G = new initGears();
     createOfflineStatus();
     addOfflineButton();
-    debug();
-    console.log('Douban offline initialized');
+    if (!server) {
+        triggerAllowDoubanDialog();
+    } else {
+        debug();
+        console.log('Douban offline initialized');
+    }
 }
 
 function initControl() {
@@ -199,7 +222,7 @@ function triggerAllowOthoDialog() {
  * ``initFrame`` used by ``initDoubanFrame`` and ``initOthoFrame``
  */
 function initControlFrame(doubanUrl) {
-    return initFrame('offline-control', doubanUrl + '#douban_offline_control', '');
+    return initFrame('offline-control', doubanUrl);
 }
 
 function initDoubanFrame(downloadUrls) {
@@ -215,13 +238,14 @@ function initOthoFrame(downloadUrls) {
 function initFrame(frameId, frameUrl, downloadUrls) {
     if (downloadUrls && typeof downloadUrls != 'string')
         downloadUrls = downloadUrls.join('|');
-    var iFrame = $(frameId);
+    var iFrame = $('#' + frameId);
     if (!iFrame.length) {
-        var src = frameUrl + ( downloadUrls ? '#' + downloadUrls + '#douban_offline_download' : '' );
         iFrame = $('<iframe></iframe>');
-        iFrame.attr('src', src).attr('id', frameId)
+        iFrame.attr('id', frameId).attr('name', frameId)
               .css({ 'display': 'none' }).appendTo($('body'));
     }
+    var src = frameUrl + ( downloadUrls ? '#' + downloadUrls + '#douban_offline_download' : '' );
+    iFrame.attr('src', src);
     // console.log(iFrame.attr('src'));
     return iFrame;
 }
@@ -230,11 +254,40 @@ function initFrame(frameId, frameUrl, downloadUrls) {
 
 /* {{{ === Link parser ===  
  */
+var cssImageUrls = [
+    '/pics/discover.jpg',
+    '/pics/topicbar.gif',
+    '/pics/headnavbot.gif',
+    '/pics/headnavback.gif',
+    '/pics/search.gif',
+    '/pics/graybutt.gif',
+    '/pics/redbutt.gif',
+    '/pics/zbar.gif',
+    '/pics/wztab.gif',
+    '/pics/ibox.gif',
+    '/pics/tablev.gif',
+    '/pics/tableh.gif',
+    '/pics/quotel.gif',
+    '/pics/quoter.gif',
+    '/pics/listdot.gif',
+    '/pics/stars.gif',
+    '/pics/arrowright.gif',
+    '/pics/topicgrey.gif',
+    '/pics/albumback.gif',
+    '/pics/albumback_s.gif',
+    '/pics/video_overlay.png',
+    '/pics/feed1.png',
+    '/pics/collect_back.png'
+];
+for (var i = 0, len = cssImageUrls.length; i < len; i++) {
+    cssImageUrls[i] = 'http://www.douban.com' + cssImageUrls[i];
+}
+
 function getLinks() {
     var doubanUrls = [ location.href ];
     var othoUrls = [];
 
-    doubanUrls = doubanUrls.concat(getStyleLinks(), getScriptLinks());
+    doubanUrls = doubanUrls.concat(cssImageUrls, getStyleLinks(), getScriptLinks());
     $.each(getImageLinks(), function() {
         if (/www\.douban\.com/.test(this)) doubanUrls.push(this.toString());
         else othoUrls.push(this.toString());
@@ -360,13 +413,13 @@ function getByType(type, start, limit) {
     var results = []
     try {
         if (type == 'all') {
-            rs = db.execute('SELECT * FROM DoubanOffline ORDER BY TransactionID DESC ' +
-                           'LIMIT ? OFFSET ?',
-                           [limit, start]);
+            var rs = db.execute('SELECT * FROM DoubanOffline ORDER BY TransactionID DESC ' +
+                                'LIMIT ? OFFSET ?',
+                                [limit, start]);
         } else {
-            rs = db.execute('SELECT * FROM DoubanOffline WHERE Type = ? ' +
-                            'ORDER BY TransactionID DESC LIMIT ? OFFSET ?',
-                            [type, limit, start]);
+            var rs = db.execute('SELECT * FROM DoubanOffline WHERE Type = ? ' +
+                                'ORDER BY TransactionID DESC LIMIT ? OFFSET ?',
+                                [type, limit, start]);
         }
         while (rs.isValidRow()) {
             var result = { title: rs.field(0), url: rs.field(1),
@@ -379,6 +432,32 @@ function getByType(type, start, limit) {
         rs.close();
     }
     return results;
+}
+
+function deleteById(id) {
+    try {
+        var rs = db.execute('SELECT TransactionID, URL FROM DoubanOffline ' +
+                            'WHERE TransactionID = ?',
+                            [id]);
+        while (rs.isValidRow()) {
+            store.remove(rs.field(1));
+            rs.next();
+        }
+    } catch(e) {
+        console.log('Failed to delete from the store, ID: ' + id);
+    } finally {
+        rs.close();
+    } 
+
+    try {
+        var ss = db.execute('DELETE FROM DoubanOffline WHERE TransactionID = ?',
+                            [id]);
+        console.log('Resource deleted, ID:' + id);
+    } catch(e) {
+        console.log('Failed to delete from the database, ID: ' + id);
+    } finally {
+        ss.close();
+    }
 }
 /* }}} */
 
@@ -404,38 +483,70 @@ function hideOfflineStatus() {
 }
 
 function createOfflineStatus() {
+    var style = $('<style type="text/css"></style');
     var wrapper = $('<div id="douban-offline-status"></div>');
     var title = $('<h2>豆瓣离线</h2>');
+    var captureButton = $('<span id="douban-offline-capture" class="button">收藏此页面</span>');
     var insideWrapper = $('<div></div>');
-    var typeListWrapper = $('<ul id="douban-offline-type-list"></ul>');
-    var linkTableWrapper = $('<table id="douban-offline-link-table"><tbody></tbody></table>');
-    var linkTableHeader = $('<tr><th>ID</th><th>标题</th><th>链接</th><th>类别</th></tr>');
-
-    $.each(doubanTypeDict, function() {
-        var item = $('<li></li>');
-        var link = $('<span></span>');
-        link.attr('id', 'douban-offline-type-' + this.id)
-            .html(this.name);
-        item.append(link).appendTo(typeListWrapper);
+    captureButton.click(function() {
+        capturePage(document.title, location.href.toString());
     });
 
-    var results = getByType('all', 0, 10);
-    $.each(results, function() {
-        var item = $('<tr></tr>');
-        item.append('<td>' + this.id + '</td>')
-            .append('<td>' + this.title + '</td>')
-            .append('<td>' + this.url + '</td>')
-            .append('<td>' + this.type + '</td>')
-            .attr('id', 'douban-offline-' + this.id)
-            .attr('class', 'douban-offline-link')
-            .appendTo(linkTableWrapper);
-    });
+    var typeListWrapper = new drawTypeList();
+    var linkTableWrapper = new drawLinkTable('all');
 
-    linkTableWrapper.prepend(linkTableHeader);
     insideWrapper.append(typeListWrapper).append(linkTableWrapper)
                  .append('<div class="clear"></div>')
-    wrapper.append(title).append(insideWrapper).insertAfter($('#status'))
-           .hide();
+    wrapper.append(captureButton).append(title).append(insideWrapper)
+           .insertAfter($('#status')).hide();
+    style.html(doubanOfflineStyle).insertBefore(wrapper);
+}
+
+function drawTypeList() {
+    var list = $('<ul id="douban-offline-type-list"></ul>');
+    $.each(doubanTypeDict, function() {
+        var type = this.id;
+        var item = $('<li></li>');
+        var link = $('<span></span>');
+        link.attr('id', 'douban-offline-type-' + type).attr('class', 'button')
+            .html(this.name);
+        link.click(function() {
+            drawLinkTable(type);
+        });
+        item.append(link).appendTo(list);
+    });
+    return list;
+}
+
+function drawLinkTable(type) {
+    var results = getByType(type, 0, 10);
+    var table = $('#douban-offline-link-table');
+    if (!table.length) {
+        var table = $('<table id="douban-offline-link-table"><tbody></tbody></table>');
+        table.append($('<tr><th class="id">ID</th><th class="title">标题</th><th class="url">链接</th><th class="type">类别</th><th class="delete">删除</th></tr>'));
+    }
+    table.find('tr:gt(0)').remove();
+    $.each(results, function() {
+        var itemId = this.id;
+        var itemType = this.type;
+        var item = $('<tr id="douban-offline-link-' + itemId + '"></tr>');
+        item.append('<td class="id">' + itemId + '</td>')
+            .append('<td class="title">' + this.title + '</td>')
+            .append('<td class="url"><a href="' + this.url + '">' + this.url + '</a></td>')
+            .append('<td class="type">' + doubanTypeDict[itemType].name + '</td>')
+            .append('<td class="delete"><span class="button douban-offline-delete">删除</span></td>')
+            .attr('id', 'douban-offline-' + itemId)
+            .attr('class', 'douban-offline-link')
+            .appendTo(table);
+
+        var deleteButton = item.find('span.douban-offline-delete');
+        deleteButton.click(function() {
+            deleteById(itemId);
+            drawLinkTable(type);
+        });
+    });
+    table.find('tr:even').css({ 'background': '#f4fff1' });
+    return table;
 }
 
 /* }}} */
@@ -491,10 +602,10 @@ function debug() {
      */
 
     /* Test setup download 
-    initControlFrame('http://www.douban.com/subject/1199198/');
+    initControlFrame('http://www.douban.com/contacts/');
      */
 
 }
 /* }}} */
 
-// vim: set ft=conf foldmethod=marker et :
+// vim: set foldmethod=marker

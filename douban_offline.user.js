@@ -1,7 +1,7 @@
 // {{{ === License and metadata ===  
 // Douban Offline
 // A Greasemonkey script allows you to use douban offline and backup your collections
-// version 0.1
+// version 0.2
 // Copyright (c) 2008 Wu Yuntao <http://blog.luliban.com/>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -56,11 +56,19 @@ const doubanTypeDict = {
     people: { id: 'people', name: '用户',
               regex: /^http:\/\/www\.douban\.com\/people\/.*/
     },
+    note: { id: 'note', name: '日记',
+            regex: /^http:\/\/www\.douban\.com\/note\/.*/
+    },
+    photo: { id: 'photo', name: '相册',
+            regex: /^http:\/\/www\.douban\.com\/photos\/.*/
+    },
 };
+
 const doubanOfflineStyle = 
     "#douban-offline-status { margin: 0 20px 3px; border: 1px solid #d5f5d5; border-width: 0 2px 2px; -moz-border-radius-bottomright: 8px; -moz-border-radius-bottomleft: 8px; } " + 
     "#douban-offline-status h2 { padding: 2px 20px; margin: 0; border-bottom: 2px solid #eef9eb; }" +
     "#douban-offline-type-list { text-align: left; display: block; float: left; width: 5%; margin: 5px 0 30px 15px; }" +
+    "#douban-offline-type-list .current { font-weight: bold; }" +
     "#douban-offline-link-table { display: block; float: right; width: 92%; margin: 3px; }" +
     "#douban-offline-link-table th { font-weight: bold; text-align: center; background: #eef9eb }" +
     "#douban-offline-link-table th.id { width: 4%; }" +
@@ -74,7 +82,7 @@ const doubanOfflineStyle =
     "#douban-offline-link-table td.type { width: 8%; text-align: center; }" +
     "#douban-offline-link-table td.delete { width: 4%; text-align: center; }" +
     "#douban-offline-status span.button { cursor: pointer; color: #336699; text-decoration: underline; }" +
-    "#douban-offline-capture { display: block; float: right; margin: 3px 3px 0 0; }" +
+    "#douban-offline-capture, #douban-toggle-offline { display: block; float: right; margin: 3px; }" +
     ""
 ;
 
@@ -102,7 +110,7 @@ function initOffline() {
     if (!server) {
         triggerAllowDoubanDialog();
     } else {
-        debug();
+        // disableStore();
         console.log('Douban offline initialized');
     }
 }
@@ -354,8 +362,8 @@ function getScriptLinks() {
 
 /* === {{{ Page capture ===  
  */
-function capturePage(title, url) {
-    if (store.isCaptured(url)) {
+function capturePage(title, url, force) {
+    if (store.isCaptured(url) && force != true) {
         // is captured
         console.log("URL: " + url + " is already captured");
     } else {
@@ -378,14 +386,57 @@ function capture(url) {
 }
 /* }}} */
 
-/* {{{ === Datebase opertions ===  
+/* {{{ === Store opertions ===  
  */
+function enableStore() {
+    try {
+        store.enabled = true;
+    } catch(e) {
+        console.log('Failed to enable store');
+    }
+}
+
+function disableStore() {
+    try {
+        store.enabled = false;
+    } catch(e) {
+        console.log('Failed to disable store');
+    }
+}
+
+function isOffline() {
+    return store.enabled == true;
+}
+
 function saveInDatabase(title, url) {
     var maxId = 0;
     var rowId = null;
     var type = getType(url);
+    // Update entry
     try {
-        var rs = db.execute('SELECT MAX(TransactionID) from DoubanOffline');
+        var rs = db.execute('SELECT TransactionID, URL FROM DoubanOffline ' +
+                            'WHERE URL = ?',
+                            [url]);
+        if (rs.isValidRow()) {
+            rowId = rs.field(0);
+            try {
+                var ss = db.execute('UPDATE DoubanOffline SET Title = ? ' +
+                                    'WHERE TransactionID = ?',
+                                    [title, rowId]);
+                return rowId;
+            } catch(e) {
+                console.log('Failed to update record in Database');
+            } finally {
+                ss.close();
+            }
+        }
+    } finally {
+        rs.close();
+    }
+
+    // Save in new entry
+    try {
+        var rs = db.execute('SELECT MAX(TransactionID) FROM DoubanOffline');
         if (rs.isValidRow() && rs.field(0) != null) {
             maxId = rs.field(0);
         }
@@ -486,20 +537,43 @@ function createOfflineStatus() {
     var style = $('<style type="text/css"></style');
     var wrapper = $('<div id="douban-offline-status"></div>');
     var title = $('<h2>豆瓣离线</h2>');
-    var captureButton = $('<span id="douban-offline-capture" class="button">收藏此页面</span>');
     var insideWrapper = $('<div></div>');
-    captureButton.click(function() {
-        capturePage(document.title, location.href.toString());
-    });
-
+    var captureButton = new drawCaptureButton();
+    var toggleOfflineButton = new drawToggleOfflineButton();
     var typeListWrapper = new drawTypeList();
     var linkTableWrapper = new drawLinkTable('all');
 
     insideWrapper.append(typeListWrapper).append(linkTableWrapper)
                  .append('<div class="clear"></div>')
-    wrapper.append(captureButton).append(title).append(insideWrapper)
+    wrapper.append(captureButton).append(toggleOfflineButton)
+           .append(title).append(insideWrapper)
            .insertAfter($('#status')).hide();
     style.html(doubanOfflineStyle).insertBefore(wrapper);
+}
+
+function drawToggleOfflineButton() {
+    var button = $('<span id="douban-toggle-offline" class="button"></span>');
+    if (isOffline()) {
+        button.html('在线浏览');
+    } else {
+        button.html('离线浏览');
+    }
+    button.click(function() {
+        isOffline() ? disableStore() : enableStore();
+        location.href = location.href;
+    });
+    return button;
+}
+
+function drawCaptureButton() {
+    var force = store.isCaptured(location.href.toString());
+    var button = $('<span id="douban-offline-capture" class="button"></span>');
+    if (force) button.html('更新此页面');
+    else button.html('收藏此页面');
+    button.click(function() {
+        capturePage(document.title, location.href.toString(), force);
+    });
+    return button
 }
 
 function drawTypeList() {
@@ -508,10 +582,13 @@ function drawTypeList() {
         var type = this.id;
         var item = $('<li></li>');
         var link = $('<span></span>');
-        link.attr('id', 'douban-offline-type-' + type).attr('class', 'button')
+        link.attr('id', 'douban-offline-type-' + type)
+            .attr('class', 'button ' + (type == 'all' ? 'current' : ''))
             .html(this.name);
         link.click(function() {
             drawLinkTable(type);
+            $('#douban-offline-type-list span.current').removeClass('current');
+            $(this).addClass('current');
         });
         item.append(link).appendTo(list);
     });
@@ -558,7 +635,6 @@ function getType(url) {
     $.each(doubanTypeDict, function() {
         if (this.regex.test(url)) type = this.id;
     });
-    console.log(type);
     return type;
 }
 
@@ -577,35 +653,4 @@ $(function() {
     else initOffline();
 });
 /* }}} */
-
-/* {{{ === Debug ===  
- */
-function debug() {
-    /* Test for get external links (pass)
-    console.log(getImageLinks());
-    console.log(getStyleLinks());
-    console.log(getScriptLinks());
-    console.log(getLinks().doubanUrls);
-    console.log(getLinks().othoUrls);
-     */
-
-    /* Test page type (pass)
-    console.log(isControl('http://www.douban.com/#douban_offline_control'));
-    console.log(isControl('http://www.douban.com/#contacts#douban_offline_control'));
-    console.log(isDouban('http://www.douban.com/contacts/#douban_offline_download'));
-    console.log(isOtho('http://otho.douban.com/pic/u12312-3.jpg#douban_offline_download'));
-     */
-
-    /* Test capture whole page (pass)
-    window.$G = new initGears();
-    capturePage('Test capture', 'http://www.douban.com/subject/1458897/');
-     */
-
-    /* Test setup download 
-    initControlFrame('http://www.douban.com/contacts/');
-     */
-
-}
-/* }}} */
-
 // vim: set foldmethod=marker

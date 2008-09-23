@@ -36,4 +36,31 @@
     <note priority="medium" time="1221838269" done="1221883710">
         删除存储
     </note>
+    <note priority="medium" time="1221898807" done="1222174652">
+        手动更新收藏
+    </note>
+    <note priority="medium" time="1221898844" done="1222175822">
+        左侧分类列表的高亮问题
+    </note>
+    <note priority="medium" time="1222011225" done="1222174663">
+        不删除收藏，无法更新网页的BUG
+    </note>
+    <note priority="medium" time="1221898748" done="1222175833">
+        更新收藏的问题
+    </note>
+    <note priority="medium" time="1221898814">
+        自动更新收藏
+    </note>
+    <note priority="medium" time="1221898862">
+        收藏页面的loading图标
+    </note>
+    <note priority="medium" time="1221898869">
+        工作池的问题
+    </note>
+    <note priority="medium" time="1221898879">
+        下拉菜单的显示问题
+    </note>
+    <note priority="medium" time="1221898922">
+        自动缓存用户收藏
+    </note>
 </todo>

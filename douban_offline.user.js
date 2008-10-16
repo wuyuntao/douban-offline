@@ -1,7 +1,7 @@
 // {{{ === License and metadata ===  
 // Douban Offline
 // A Greasemonkey script allows you to use douban offline and backup your collections
-// version 0.2
+// version 0.3
 // Copyright (c) 2008 Wu Yuntao <http://blog.luliban.com/>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -32,7 +32,6 @@
 // @description     A Greasemonkey script allows you to use douban offline and backup your collections
 // @include         http://www.douban.com/*
 // @include         http://otho.douban.com/*
-// @resource        favicon http://lotho.douban.com/favicon.ico
 // @require         http://www.douban.com/js/jquery5685.js
 // ==/UserScript==
 //
@@ -93,6 +92,7 @@ var db = null;
 var workerPoll = null;
 
 // Browser
+var bean = unsafeWindow.bean || { createCommand: function() {} };
 var console = unsafeWindow.console || { log: function() {} };
 /* }}} */
 
@@ -643,6 +643,20 @@ function push(item, array) {
 }
 /* }}} */
 
+/* {{{ === Douban helper command === 
+ */
+bean.createCommand({
+    scope: true,
+    name : 'write',
+    shortcut : 'w',
+    description : '收藏离线页面',
+    hideConsoleAfterExecute : false,
+    execute : function (url) {
+        capturePage(document.title, location.href.toString(), true);
+    }
+});
+/* }}} */
+
 /* {{{ === Main entry ===  
  */
 $(function() {
@@ -651,6 +665,14 @@ $(function() {
     else if (isDouban(url)) initDoubanGears();
     else if (isOtho(url)) initOthoGears();
     else initOffline();
+    tests();
 });
 /* }}} */
+
+/* {{{ === Tests ===  
+ */
+function tests() {
+}
+/* }}} */
+
 // vim: set foldmethod=marker

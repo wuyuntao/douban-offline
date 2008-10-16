@@ -3,6 +3,9 @@
     <note priority="high" time="1221578414" done="1221749209">
         获取纯HTML豆瓣页面
     </note>
+    <note priority="high" time="1222880159" done="1222880161">
+        增加Douban Helper命令
+    </note>
     <note priority="medium" time="1221578480" done="1221749212">
         获取豆瓣CSS、JS
     </note>
@@ -36,6 +39,9 @@
     <note priority="medium" time="1221838269" done="1221883710">
         删除存储
     </note>
+    <note priority="medium" time="1221898748" done="1222175833">
+        更新收藏的问题
+    </note>
     <note priority="medium" time="1221898807" done="1222174652">
         手动更新收藏
     </note>
@@ -45,14 +51,14 @@
     <note priority="medium" time="1222011225" done="1222174663">
         不删除收藏，无法更新网页的BUG
     </note>
-    <note priority="medium" time="1221898748" done="1222175833">
-        更新收藏的问题
+    <note priority="veryhigh" time="1222966529">
+        重构重构
     </note>
     <note priority="medium" time="1221898814">
         自动更新收藏
     </note>
     <note priority="medium" time="1221898862">
-        收藏页面的loading图标
+        保存时的Loading，或进度条
     </note>
     <note priority="medium" time="1221898869">
         工作池的问题
@@ -62,5 +68,23 @@
     </note>
     <note priority="medium" time="1221898922">
         自动缓存用户收藏
+    </note>
+    <note priority="medium" time="1222177279">
+        相册，日记页“离线”按钮的位置
+    </note>
+    <note priority="medium" time="1222177890">
+        添加桌面图标
+    </note>
+    <note priority="medium" time="1222224769">
+        收藏翻页
+    </note>
+    <note priority="medium" time="1222305766">
+        添加评论
+    </note>
+    <note priority="medium" time="1222968256">
+        提供API接口
+    </note>
+    <note priority="medium" time="1224032468">
+        更友好的Gears安装提醒
     </note>
 </todo>

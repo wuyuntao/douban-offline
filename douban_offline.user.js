@@ -96,6 +96,200 @@ var bean = unsafeWindow.bean || { createCommand: function() {} };
 var console = unsafeWindow.console || { log: function() {} };
 /* }}} */
 
+/* {{{ === Database ===  
+ */
+function SQL() {
+}
+$.extend(SQL.prototype, {
+    createTable: function(name, fields) {
+        var param = [];
+        for (var i = 0, len = fields.length; i < len; i++) {
+            param.push(fields[i].name + ' ' + fields[i].model);
+        }
+        param = param.join(', ');
+        var sql = 'CREATE TABLE IF NOT EXISTS ' + name + ' (' + param + ')';
+        return sql;
+    },
+});
+// Singleton
+$.sql = new SQL();
+
+
+/* Offline databse
+ */
+function OfflineDatabase() {
+    this.db = null;
+    this.dbName = 'douban_offline';
+    this.tableName = 'DoubanOffline';
+    this.tableFields = [
+        { name: 'Title',            model: 'VARCHAR(255)' },
+        { name: 'URL',              model: 'VARCHAR(255)' },
+        { name: 'Type',             model: 'VARCHAR(255)' },
+        { name: 'TransactionID',    model: 'INT'          }
+    ]
+    this.init();
+}
+$.extend(OfflineDatabase.prototype, {
+    /* Get or create the database
+     */
+    init: function() {
+        try {
+            this.db = unsafeWindow.google.gears.factory.create('beta.database');
+            if (this.db) {
+                var sql = $.sql.createTable(this.tableName, this.tableFields);
+                this.db.open(this.dbName);
+                this.db.execute(sql);
+            }
+        } catch(e) {
+            console.log("Problem in initializing database: " + e.message);
+        }
+    },
+
+    get: function(url) {
+        try {
+            var rs = this.db.execute('SELECT TransactionID, URL ' +
+                                     'FROM ' + this.tableName +
+                                     ' WHERE URL = ?',
+                                     [url]);
+            if (rs.isValidRow() && rs.field(0) != null) {
+                return rs.field(0);
+            } else {
+                return false;
+            }
+        } catch(e) {
+            console.log('Failed to query from database');
+        } finally {
+            rs.close();
+        }
+    },
+
+    getByType: function(type, start, limit) {
+        var results = []
+        try {
+            if (type == 'all') {
+                var rs = this.db.execute('SELECT * ' +
+                                         'FROM ' + this.tableName +
+                                         ' ORDER BY TransactionID DESC ' +
+                                         'LIMIT ? OFFSET ?',
+                                         [limit, start]);
+            } else {
+                var rs = this.db.execute('SELECT * ' +
+                                         'FROM ' + this.tableName +
+                                         ' WHERE Type = ? ' +
+                                         'ORDER BY TransactionID ' +
+                                         'DESC LIMIT ? OFFSET ?',
+                                         [type, limit, start]);
+            }
+            while (rs.isValidRow()) {
+                var result = { title: rs.field(0),
+                               url: rs.field(1),
+                               type: rs.field(2),
+                               id: rs.field(3) };
+                // console.log(result);
+                results.push(result);
+                rs.next();
+            }
+        } finally {
+            rs.close();
+        }
+        return results;
+    },
+
+    save: function(title, url) {
+        var id = this.get(url);
+        if (id) {
+            this.update(id, title);
+        } else {
+            this.insert(title, url);
+        }
+    },
+
+    /* Insert offline URL to database
+     */
+    insert: function(title, url) {
+        var maxId = 0;
+        var rowId = null;
+        var type = getType(url);
+        try {
+            var rs = this.db.execute('SELECT MAX(TransactionID) ' +
+                                     'FROM ' + this.tableName);
+            if (rs.isValidRow() && rs.field(0) != null) {
+                maxId = rs.field(0);
+            }
+        } finally {
+            rs.close()
+        }
+        maxId++;
+
+        console.log("<[" + type + "] " + title + ": \"" + url +
+                    "\"> saved in transaction ID: " + maxId);
+        var rs = this.db.execute('INSERT INTO ' + this.tableName +
+                                 ' VALUES (?, ?, ?, ?)',
+                                 [title, url, type, maxId]);
+        try {
+            rs = this.db.execute('SELECT MAX(rowid) FROM ' + this.tableName);
+            if (rs.isValidRow()) {
+                rowId = rs.field(0);
+            }
+        } finally {
+            rs.close();
+        }
+        return rowId;
+    },
+
+    update: function(title, url) {
+        var rowId = null;
+        try {
+            var rs = this.db.execute('SELECT TransactionID, URL ' +
+                                     'FROM ' + this.tableName +
+                                     ' WHERE URL = ?',
+                                     [url]);
+            if (rs.isValidRow()) {
+                rowId = rs.field(0);
+                try {
+                    var ss = this.db.execute('UPDATE DoubanOffline ' +
+                                             'SET Title = ? ' + 
+                                             'WHERE TransactionID = ?',
+                                             [title, rowId]);
+                    return rowId;
+                } catch(e) {
+                    console.log('Failed to update record in Database');
+                } finally {
+                    ss.close();
+                }
+            }
+        } finally {
+            rs.close();
+        }
+    },
+
+    delete: function(id) {
+        // delete from store
+        try {
+            var rs = this.db.execute('SELECT TransactionID, URL FROM DoubanOffline WHERE TransactionID = ?', [id]);
+            while (rs.isValidRow()) {
+                store.remove(rs.field(1));
+                rs.next();
+            }
+        } catch(e) {
+            console.log('Failed to delete from the store, ID: ' + id);
+        } finally {
+            rs.close();
+        }
+        // delete from database
+        try {
+            var ss = this.db.execute('DELETE FROM DoubanOffline WHERE TransactionID = ?', [id]);
+            console.log('Resource deleted, ID:' + id);
+        } catch(e) {
+            console.log('Failed to delete from the database, ID: ' + id);
+        } finally {
+            ss.close();
+        }
+    },
+});
+
+/* }}} */
+
 /* {{{ === Initialization ===  
  * ``initOffline`` for most pages
  * ``initControl`` for the control iframe
@@ -165,12 +359,7 @@ function initGears() {
     try {
         server = unsafeWindow.google.gears.factory.create('beta.localserver');
         store = server.createStore('douban_offline');
-        db = unsafeWindow.google.gears.factory.create('beta.database');
-        if (db) {
-            db.open('douban_offline');
-            db.execute('CREATE TABLE IF NOT EXISTS DoubanOffline' +
-                ' (Title VARCHAR(255), URL VARCHAR(255), Type VARCHAR(255), TransactionID INT)');
-        }
+        db = new OfflineDatabase();
     } catch(e) {
         console.log("Problem in initializing database: " + e.message);
     }
@@ -370,7 +559,7 @@ function capturePage(title, url, force) {
         var urls = getLinks();
         initDoubanFrame(urls.doubanUrls);
         initOthoFrame(urls.othoUrls);
-        saveInDatabase(title, url);
+        db.save(title, url);
     }
 }
 
@@ -408,108 +597,6 @@ function isOffline() {
     return store.enabled == true;
 }
 
-function saveInDatabase(title, url) {
-    var maxId = 0;
-    var rowId = null;
-    var type = getType(url);
-    // Update entry
-    try {
-        var rs = db.execute('SELECT TransactionID, URL FROM DoubanOffline ' +
-                            'WHERE URL = ?',
-                            [url]);
-        if (rs.isValidRow()) {
-            rowId = rs.field(0);
-            try {
-                var ss = db.execute('UPDATE DoubanOffline SET Title = ? ' +
-                                    'WHERE TransactionID = ?',
-                                    [title, rowId]);
-                return rowId;
-            } catch(e) {
-                console.log('Failed to update record in Database');
-            } finally {
-                ss.close();
-            }
-        }
-    } finally {
-        rs.close();
-    }
-
-    // Save in new entry
-    try {
-        var rs = db.execute('SELECT MAX(TransactionID) FROM DoubanOffline');
-        if (rs.isValidRow() && rs.field(0) != null) {
-            maxId = rs.field(0);
-        }
-    } finally {
-        rs.close()
-    }
-    maxId++;
-
-    console.log("<[" + type + "] " + title + ": \"" + url +
-                "\"> saved in transaction ID: " + maxId);
-    var rs = db.execute('INSERT INTO DoubanOffline VALUES (?, ?, ?, ?)',
-        [title, url, type, maxId]);
-    try {
-        rs = db.execute('SELECT MAX(rowid) from DoubanOffline');
-        if (rs.isValidRow()) {
-            rowId = rs.field(0);
-        }
-    } finally {
-        rs.close();
-    }
-    return rowId;
-}
-
-function getByType(type, start, limit) {
-    var results = []
-    try {
-        if (type == 'all') {
-            var rs = db.execute('SELECT * FROM DoubanOffline ORDER BY TransactionID DESC ' +
-                                'LIMIT ? OFFSET ?',
-                                [limit, start]);
-        } else {
-            var rs = db.execute('SELECT * FROM DoubanOffline WHERE Type = ? ' +
-                                'ORDER BY TransactionID DESC LIMIT ? OFFSET ?',
-                                [type, limit, start]);
-        }
-        while (rs.isValidRow()) {
-            var result = { title: rs.field(0), url: rs.field(1),
-                           type: rs.field(2), id: rs.field(3) };
-            // console.log(result);
-            results.push(result);
-            rs.next();
-        }
-    } finally {
-        rs.close();
-    }
-    return results;
-}
-
-function deleteById(id) {
-    try {
-        var rs = db.execute('SELECT TransactionID, URL FROM DoubanOffline ' +
-                            'WHERE TransactionID = ?',
-                            [id]);
-        while (rs.isValidRow()) {
-            store.remove(rs.field(1));
-            rs.next();
-        }
-    } catch(e) {
-        console.log('Failed to delete from the store, ID: ' + id);
-    } finally {
-        rs.close();
-    } 
-
-    try {
-        var ss = db.execute('DELETE FROM DoubanOffline WHERE TransactionID = ?',
-                            [id]);
-        console.log('Resource deleted, ID:' + id);
-    } catch(e) {
-        console.log('Failed to delete from the database, ID: ' + id);
-    } finally {
-        ss.close();
-    }
-}
 /* }}} */
 
 /* {{{ === User interface ===  
@@ -596,7 +683,7 @@ function drawTypeList() {
 }
 
 function drawLinkTable(type) {
-    var results = getByType(type, 0, 10);
+    var results = db.getByType(type, 0, 10);
     var table = $('#douban-offline-link-table');
     if (!table.length) {
         var table = $('<table id="douban-offline-link-table"><tbody></tbody></table>');
@@ -618,7 +705,7 @@ function drawLinkTable(type) {
 
         var deleteButton = item.find('span.douban-offline-delete');
         deleteButton.click(function() {
-            deleteById(itemId);
+            db.delete(itemId);
             drawLinkTable(type);
         });
     });

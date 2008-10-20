@@ -195,6 +195,8 @@ $.extend(OfflineDatabase.prototype, {
         return results;
     },
 
+    /* Insert or update URL to database
+     */
     save: function(title, url) {
         var id = this.get(url);
         if (id) {
@@ -287,6 +289,61 @@ $.extend(OfflineDatabase.prototype, {
         }
     },
 });
+
+/* }}} */
+
+/* {{{ === Store ===  
+ */
+function OfflineStore() {
+    this.store = null;
+    this.init();
+}
+$.extend(OfflineStore.prototype, {
+
+    init: function() {
+    },
+
+    enable: function() {
+        try {
+            this.store.enabled = true;
+        } catch(e) {
+            console.log('Failed to enable store');
+        }
+    },
+
+    disable: function() {
+        try {
+            this.store.enabled = false;
+        } catch(e) {
+            console.log('Failed to disable store');
+        }
+    },
+
+    isOffline: function() {
+        return this.store.enabled == true;
+    }
+
+});
+
+function enableStore() {
+    try {
+        store.enabled = true;
+    } catch(e) {
+        console.log('Failed to enable store');
+    }
+}
+
+function disableStore() {
+    try {
+        store.enabled = false;
+    } catch(e) {
+        console.log('Failed to disable store');
+    }
+}
+
+function isOffline() {
+    return store.enabled == true;
+}
 
 /* }}} */
 
@@ -575,30 +632,6 @@ function capture(url) {
 }
 /* }}} */
 
-/* {{{ === Store opertions ===  
- */
-function enableStore() {
-    try {
-        store.enabled = true;
-    } catch(e) {
-        console.log('Failed to enable store');
-    }
-}
-
-function disableStore() {
-    try {
-        store.enabled = false;
-    } catch(e) {
-        console.log('Failed to disable store');
-    }
-}
-
-function isOffline() {
-    return store.enabled == true;
-}
-
-/* }}} */
-
 /* {{{ === User interface ===  
  */
 function addOfflineButton() {
@@ -608,7 +641,7 @@ function addOfflineButton() {
         toggleOfflineStatus();
         return false;
     });
-    $('#status').append(button);
+    $('#status a:last').after(button);
 }
 
 function toggleOfflineStatus() {

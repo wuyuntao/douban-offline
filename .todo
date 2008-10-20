@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <todo version="0.1.20">
+    <note priority="veryhigh" time="1222966529" done="1224493451">
+        重构重构
+    </note>
     <note priority="high" time="1221578414" done="1221749209">
         获取纯HTML豆瓣页面
     </note>
@@ -51,8 +54,17 @@
     <note priority="medium" time="1222011225" done="1222174663">
         不删除收藏，无法更新网页的BUG
     </note>
-    <note priority="veryhigh" time="1222966529">
-        重构重构
+    <note priority="high" time="1222177279" done="1224518362">
+        相册，日记页“离线”按钮的位置
+    </note>
+    <note priority="high" time="1222224769">
+        收藏翻页
+    </note>
+    <note priority="high" time="1222305766">
+        添加评论和豆邮的标签
+    </note>
+    <note priority="high" time="1224032468">
+        更友好的Gears安装提醒
     </note>
     <note priority="medium" time="1221898814">
         自动更新收藏
@@ -69,22 +81,10 @@
     <note priority="medium" time="1221898922">
         自动缓存用户收藏
     </note>
-    <note priority="medium" time="1222177279">
-        相册，日记页“离线”按钮的位置
-    </note>
     <note priority="medium" time="1222177890">
         添加桌面图标
     </note>
-    <note priority="medium" time="1222224769">
-        收藏翻页
-    </note>
-    <note priority="medium" time="1222305766">
-        添加评论
-    </note>
     <note priority="medium" time="1222968256">
         提供API接口
-    </note>
-    <note priority="medium" time="1224032468">
-        更友好的Gears安装提醒
     </note>
 </todo>

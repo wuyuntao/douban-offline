@@ -6,6 +6,9 @@
     <note priority="high" time="1221578414" done="1221749209">
         获取纯HTML豆瓣页面
     </note>
+    <note priority="high" time="1222177279" done="1224518362">
+        相册，日记页“离线”按钮的位置
+    </note>
     <note priority="high" time="1222880159" done="1222880161">
         增加Douban Helper命令
     </note>
@@ -54,13 +57,10 @@
     <note priority="medium" time="1222011225" done="1222174663">
         不删除收藏，无法更新网页的BUG
     </note>
-    <note priority="high" time="1222177279" done="1224518362">
-        相册，日记页“离线”按钮的位置
-    </note>
     <note priority="high" time="1222224769">
         收藏翻页
     </note>
-    <note priority="high" time="1222305766">
+    <note priority="high" time="1222305766" done="1224518624">
         添加评论和豆邮的标签
     </note>
     <note priority="high" time="1224032468">

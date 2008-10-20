@@ -49,6 +49,9 @@ const doubanTypeDict = {
     subject: { id: 'subject', name: '条目',
                regex: /^http:\/\/www\.douban\.com\/subject\/.*/
     },
+    review: { id: 'review', name: '评论',
+              regex: /^http:\/\/www\.douban\.com\/review\/.*/
+    },
     group: { id: 'group', name: '小组',
              regex: /^http:\/\/www\.douban\.com\/group\/.*/
     },
@@ -61,6 +64,9 @@ const doubanTypeDict = {
     photo: { id: 'photo', name: '相册',
             regex: /^http:\/\/www\.douban\.com\/photos\/.*/
     },
+    doumail: { id: 'doumail', name: '豆邮',
+            regex: /^http:\/\/www\.douban\.com\/doumail\/.*/
+    }
 };
 
 const doubanOfflineStyle = 
@@ -102,14 +108,13 @@ function SQL() {
 }
 $.extend(SQL.prototype, {
     createTable: function(name, fields) {
-        var param = [];
-        for (var i = 0, len = fields.length; i < len; i++) {
-            param.push(fields[i].name + ' ' + fields[i].model);
-        }
+        var param = $.map(fields, function(n, i) {
+            return n.name + ' ' + n.model;
+        });
         param = param.join(', ');
         var sql = 'CREATE TABLE IF NOT EXISTS ' + name + ' (' + param + ')';
         return sql;
-    },
+    }
 });
 // Singleton
 $.sql = new SQL();
@@ -295,12 +300,19 @@ $.extend(OfflineDatabase.prototype, {
 /* {{{ === Store ===  
  */
 function OfflineStore() {
+    this.server = null;
     this.store = null;
     this.init();
 }
 $.extend(OfflineStore.prototype, {
 
     init: function() {
+        try {
+            this.server = unsafeWindow.google.gears.factory.create('beta.localserver');
+            this.store = this.server.createStore('douban_offline');
+        } catch(e) {
+            console.log("Problem in initializing store: " + e.message);
+        }
     },
 
     enable: function() {
@@ -319,31 +331,41 @@ $.extend(OfflineStore.prototype, {
         }
     },
 
+    isCaptured: function(url) {
+        return this.store.isCaptured(url);
+    },
+
     isOffline: function() {
         return this.store.enabled == true;
-    }
+    },
 
+    capture: function(url) {
+        try {
+            this.store.capture(url, function(url, success, captureId) {
+                console.log("URL: " + url + ", " + ( success ? "" : "not " ) +
+                            "captured by ID " + captureId)
+            });
+        } catch(e) {
+            console.log("Cannot find store: " + e.message);
+        }
+    },
+
+    capturePage: function(title, url, force) {
+        if (this.isCaptured(url) && force != true) {
+            // is captured
+            console.log("URL: " + url + " is already captured");
+        } else {
+            var urls = getLinks();
+            initDoubanFrame(urls.doubanUrls);
+            initOthoFrame(urls.othoUrls);
+            db.save(title, url);
+        }
+    },
+
+    remove: function(url) {
+        this.store.remove(url);
+    },
 });
-
-function enableStore() {
-    try {
-        store.enabled = true;
-    } catch(e) {
-        console.log('Failed to enable store');
-    }
-}
-
-function disableStore() {
-    try {
-        store.enabled = false;
-    } catch(e) {
-        console.log('Failed to disable store');
-    }
-}
-
-function isOffline() {
-    return store.enabled == true;
-}
 
 /* }}} */
 
@@ -358,7 +380,7 @@ function initOffline() {
     window.$G = new initGears();
     createOfflineStatus();
     addOfflineButton();
-    if (!server) {
+    if (!store.server) {
         triggerAllowDoubanDialog();
     } else {
         // disableStore();
@@ -369,36 +391,36 @@ function initOffline() {
 function initControl() {
     var url = location.href.match(/(.*)#douban_offline_control$/)[1]; 
     window.$G = new initGears();
-    if (!server) {
+    if (!store.server) {
         triggerAllowDoubanDialog();
     } else {
         console.log("Start capturing page. URL: " + url);
-        capturePage(document.title, url);
+        store.capturePage(document.title, url);
     }
     console.log('Douban control initialized');
 }
 
 function initDoubanGears() {
     window.$G = new initGears();
-    if (!server) {
+    if (!store.server) {
         triggerAllowDoubanDialog();
     } else {
         console.log('Douban gears initialized');
         var doubanUrls = location.href.split('#')[1];
         var urls = doubanUrls.split('|');
-        capture(urls);
+        store.capture(urls);
     }
 }
 
 function initOthoGears() {
     window.$G = new initGears();
-    if (!server) {
+    if (!store.server) {
         triggerAllowOthoDialog();
     } else {
         console.log('Otho gears initialized');
         var othoUrls = location.href.split('#')[1];
         var urls = othoUrls.split("|");
-        capture(urls);
+        store.capture(urls);
     }
 }
 
@@ -410,12 +432,11 @@ function initGears() {
             unsafeWindow.google.gears.factory = unsafeWindow.GearsFactory();
             // unsafeWindow.google.gears = { factory: new GearsFactory() };
         } catch(e) {
-            alert("Problem in initializing Gears: " + e.message)
+            alert("Problem in initializing Gears. Please make sure you've installed Gears: " + e.message)
         }
     }
     try {
-        server = unsafeWindow.google.gears.factory.create('beta.localserver');
-        store = server.createStore('douban_offline');
+        store = new OfflineStore();
         db = new OfflineDatabase();
     } catch(e) {
         console.log("Problem in initializing database: " + e.message);
@@ -606,32 +627,6 @@ function getScriptLinks() {
 }
 /* }}} */
 
-/* === {{{ Page capture ===  
- */
-function capturePage(title, url, force) {
-    if (store.isCaptured(url) && force != true) {
-        // is captured
-        console.log("URL: " + url + " is already captured");
-    } else {
-        var urls = getLinks();
-        initDoubanFrame(urls.doubanUrls);
-        initOthoFrame(urls.othoUrls);
-        db.save(title, url);
-    }
-}
-
-function capture(url) {
-    try {
-        store.capture(url, function(url, success, captureId) {
-            console.log("URL: " + url + ", " + ( success ? "" : "not " ) +
-                        "captured by ID " + captureId)
-        });
-    } catch(e) {
-        console.log("Cannot find store: " + e.message);
-    }
-}
-/* }}} */
-
 /* {{{ === User interface ===  
  */
 function addOfflineButton() {
@@ -673,13 +668,13 @@ function createOfflineStatus() {
 
 function drawToggleOfflineButton() {
     var button = $('<span id="douban-toggle-offline" class="button"></span>');
-    if (isOffline()) {
+    if (store.isOffline()) {
         button.html('在线浏览');
     } else {
         button.html('离线浏览');
     }
     button.click(function() {
-        isOffline() ? disableStore() : enableStore();
+        store.isOffline() ? store.disable() : store.enable();
         location.href = location.href;
     });
     return button;
@@ -691,7 +686,7 @@ function drawCaptureButton() {
     if (force) button.html('更新此页面');
     else button.html('收藏此页面');
     button.click(function() {
-        capturePage(document.title, location.href.toString(), force);
+        store.capturePage(document.title, location.href.toString(), force);
     });
     return button
 }
@@ -772,7 +767,7 @@ bean.createCommand({
     description : '收藏离线页面',
     hideConsoleAfterExecute : false,
     execute : function (url) {
-        capturePage(document.title, location.href.toString(), true);
+        store.capturePage(document.title, location.href.toString(), true);
     }
 });
 /* }}} */

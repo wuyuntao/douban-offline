@@ -1,7 +1,7 @@
 // {{{ === License and metadata ===  
 // Douban Offline
 // A Greasemonkey script allows you to use douban offline and backup your collections
-// version 0.3
+// version 0.4
 // Copyright (c) 2008 Wu Yuntao <http://blog.luliban.com/>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -69,8 +69,8 @@ const doubanTypeDict = {
     }
 };
 
-const doubanOfflineStyle = 
-    "#douban-offline-status { margin: 0 20px 3px; border: 1px solid #d5f5d5; border-width: 0 2px 2px; -moz-border-radius-bottomright: 8px; -moz-border-radius-bottomleft: 8px; } " + 
+const doubanOfflineStyle =
+    "#douban-offline-status { margin: 0 20px 3px; border: 1px solid #d5f5d5; border-width: 0 2px 2px; -moz-border-radius-bottomright: 8px; -moz-border-radius-bottomleft: 8px; } " +
     "#douban-offline-status h2 { padding: 2px 20px; margin: 0; border-bottom: 2px solid #eef9eb; }" +
     "#douban-offline-type-list { text-align: left; display: block; float: left; width: 5%; margin: 5px 0 30px 15px; }" +
     "#douban-offline-type-list .current { font-weight: bold; }" +
@@ -88,6 +88,14 @@ const doubanOfflineStyle =
     "#douban-offline-link-table td.delete { width: 4%; text-align: center; }" +
     "#douban-offline-status span.button { cursor: pointer; color: #336699; text-decoration: underline; }" +
     "#douban-offline-capture, #douban-toggle-offline { display: block; float: right; margin: 3px; }" +
+    "#douban-offline-paginator { float: right; margin: 5px; }" +
+    "#douban-offline-paginator a { text-decorator: none; background: #fefffe; border: solid 1px #d5f5d5; color: #006600; }" +
+    "#douban-offline-paginator a:hover { background: #d5f5d5; color: #006600; }" +
+    "#douban-offline-paginator a, #douban-offline-paginator span { display: block; float: left; padding: 2px 5px; margin-right: 5px; margin-bottom: 3px; }" +
+    "#douban-offline-paginator .current { font-weight: bold; background: #d5f5d5; color: #006600; border: solid 1px #d5f5d5; }" +
+    "#douban-offline-paginator .prev { -moz-border-radius-bottomleft: 8px; -moz-border-radius-topleft: 8px; padding-left: 10px; }" +
+    "#douban-offline-paginator .next { -moz-border-radius-bottomright: 8px; -moz-border-radius-topright: 8px; padding-right: 10px; }" +
+    "#douban-offline-paginator .current.prev, #douban-offline-paginator .current.next { color: #ccc; background: #fefffe; border-color: #eeeeee; }" +
     ""
 ;
 
@@ -103,6 +111,13 @@ var console = unsafeWindow.console || { log: function() {} };
 /* }}} */
 
 /* {{{ === Database ===  
+ * TODO connect
+ * TODO select
+ * TODO where
+ * TODO query
+ * TODO insert
+ * TODO update
+ * TODO delete
  */
 function SQL() {
 }
@@ -118,7 +133,6 @@ $.extend(SQL.prototype, {
 });
 // Singleton
 $.sql = new SQL();
-
 
 /* Offline databse
  */
@@ -170,19 +184,24 @@ $.extend(OfflineDatabase.prototype, {
 
     getByType: function(type, start, limit) {
         var results = []
+        var start = start || 0;
+        // TODO chuck away this ugly hack
+        var limit = limit || 1000;
         try {
             if (type == 'all') {
                 var rs = this.db.execute('SELECT * ' +
                                          'FROM ' + this.tableName +
                                          ' ORDER BY TransactionID DESC ' +
-                                         'LIMIT ? OFFSET ?',
+                                         'LIMIT ? ' +
+                                         'OFFSET ?',
                                          [limit, start]);
             } else {
                 var rs = this.db.execute('SELECT * ' +
                                          'FROM ' + this.tableName +
                                          ' WHERE Type = ? ' +
-                                         'ORDER BY TransactionID ' +
-                                         'DESC LIMIT ? OFFSET ?',
+                                         'ORDER BY TransactionID DESC ' +
+                                         'LIMIT ? ' +
+                                         'OFFSET ?',
                                          [type, limit, start]);
             }
             while (rs.isValidRow()) {
@@ -255,7 +274,7 @@ $.extend(OfflineDatabase.prototype, {
                 rowId = rs.field(0);
                 try {
                     var ss = this.db.execute('UPDATE DoubanOffline ' +
-                                             'SET Title = ? ' + 
+                                             'SET Title = ? ' +
                                              'WHERE TransactionID = ?',
                                              [title, rowId]);
                     return rowId;
@@ -356,9 +375,9 @@ $.extend(OfflineStore.prototype, {
             console.log("URL: " + url + " is already captured");
         } else {
             var urls = getLinks();
+            db.save(title, url);
             initDoubanFrame(urls.doubanUrls);
             initOthoFrame(urls.othoUrls);
-            db.save(title, url);
         }
     },
 
@@ -389,7 +408,7 @@ function initOffline() {
 }
 
 function initControl() {
-    var url = location.href.match(/(.*)#douban_offline_control$/)[1]; 
+    var url = location.href.match(/(.*)#douban_offline_control$/)[1];
     window.$G = new initGears();
     if (!store.server) {
         triggerAllowDoubanDialog();
@@ -629,6 +648,9 @@ function getScriptLinks() {
 
 /* {{{ === User interface ===  
  */
+// TODO set itemsPerPage by user
+var itemsPerPage = 10;
+
 function addOfflineButton() {
     var button = $('<a id="douban-offline-button">离线</a>');
     button.css({ 'cursor': 'pointer' });
@@ -653,13 +675,16 @@ function createOfflineStatus() {
     var wrapper = $('<div id="douban-offline-status"></div>');
     var title = $('<h2>豆瓣离线</h2>');
     var insideWrapper = $('<div></div>');
+    var clearWrapper = $('<div class="clear"></div>');
     var captureButton = new drawCaptureButton();
     var toggleOfflineButton = new drawToggleOfflineButton();
     var typeListWrapper = new drawTypeList();
     var linkTableWrapper = new drawLinkTable('all');
+    var paginatorWrapper = new drawPaginator('all');
 
     insideWrapper.append(typeListWrapper).append(linkTableWrapper)
-                 .append('<div class="clear"></div>')
+                 .append('<div class="clear"></div>').append(paginatorWrapper)
+                 .append('<div class="clear"></div>');
     wrapper.append(captureButton).append(toggleOfflineButton)
            .append(title).append(insideWrapper)
            .insertAfter($('#status')).hide();
@@ -701,7 +726,8 @@ function drawTypeList() {
             .attr('class', 'button ' + (type == 'all' ? 'current' : ''))
             .html(this.name);
         link.click(function() {
-            drawLinkTable(type);
+            drawLinkTable(type, 0);
+            drawPaginator(type, 0);
             $('#douban-offline-type-list span.current').removeClass('current');
             $(this).addClass('current');
         });
@@ -710,8 +736,9 @@ function drawTypeList() {
     return list;
 }
 
-function drawLinkTable(type) {
-    var results = db.getByType(type, 0, 10);
+function drawLinkTable(type, currentPage) {
+    var start = currentPage * itemsPerPage + 1;
+    var results = db.getByType(type, start, itemsPerPage);
     var table = $('#douban-offline-link-table');
     if (!table.length) {
         var table = $('<table id="douban-offline-link-table"><tbody></tbody></table>');
@@ -741,6 +768,31 @@ function drawLinkTable(type) {
     return table;
 }
 
+function drawPaginator(type, currentPage, itemsPerPage) {
+    totalItems = db.getByType(type).length;
+    var paginator = $('#douban-offline-paginator');
+    if (!paginator.length) {
+        var paginator = $('<div></div>');
+        paginator.attr('id', 'douban-offline-paginator');
+    }
+    var paginatorClick = function(pageId) {
+        drawLinkTable(type, pageId)
+        return false;
+    };
+    $(paginator).pagination(totalItems, {
+        currentPage: currentPage,
+        items_per_page: itemsPerPage,
+        num_display_entries: 8,
+        num_edge_entries: 2,
+        prev_text: "前一页",
+        next_text: "后一页",
+        link_to: "#page-__id__",
+        // prev_show_always: false,
+        // next_show_always: false,
+        callback: paginatorClick
+    });
+    return paginator;
+}
 /* }}} */
 
 /* {{{ === General functions ===  
@@ -758,7 +810,7 @@ function push(item, array) {
 }
 /* }}} */
 
-/* {{{ === Douban helper command === 
+/* {{{ === Douban helper command ===  
  */
 bean.createCommand({
     scope: true,
@@ -766,7 +818,7 @@ bean.createCommand({
     shortcut : 'w',
     description : '收藏离线页面',
     hideConsoleAfterExecute : false,
-    execute : function (url) {
+    execute : function () {
         store.capturePage(document.title, location.href.toString(), true);
     }
 });
@@ -788,6 +840,174 @@ $(function() {
  */
 function tests() {
 }
+/* }}} */
+
+/* {{{ === jQuery pagination plugin ===  
+ * This jQuery plugin is not under GPLv3 license.
+ *
+ * This jQuery plugin displays pagination links inside the selected elements.
+ *
+ * @author Gabriel Birke (birke *at* d-scribe *dot* de)
+ * @version 1.1
+ * @param {int} maxentries Number of entries to paginate
+ * @param {Object} opts Several options (see README for documentation)
+ * @return {Object} jQuery Object
+ */
+(function($) {
+$.fn.pagination = function(maxentries, opts){
+    opts = $.extend({
+        items_per_page:10,
+        num_display_entries:10,
+        current_page:0,
+        num_edge_entries:0,
+        link_to:"#",
+        prev_text:"Prev",
+        next_text:"Next",
+        ellipse_text:"...",
+        prev_show_always:true,
+        next_show_always:true,
+        callback:function(){return false;}
+    },opts||{});
+
+    return this.each(function() {
+        /**
+         * Calculate the maximum number of pages
+         */
+        function numPages() {
+            return Math.ceil(maxentries/opts.items_per_page);
+        }
+
+        /**
+         * Calculate start and end point of pagination links depending on 
+         * current_page and num_display_entries.
+         * @return {Array}
+         */
+        function getInterval()  {
+            var ne_half = Math.ceil(opts.num_display_entries/2);
+            var np = numPages();
+            var upper_limit = np-opts.num_display_entries;
+            var start = current_page>ne_half?Math.max(Math.min(current_page-ne_half, upper_limit), 0):0;
+            var end = current_page>ne_half?Math.min(current_page+ne_half, np):Math.min(opts.num_display_entries, np);
+            return [start,end];
+        }
+
+        /**
+         * This is the event handling function for the pagination links.
+         * @param {int} page_id The new page number
+         */
+        function pageSelected(page_id, evt){
+            current_page = page_id;
+            drawLinks();
+            var continuePropagation = opts.callback(page_id, panel);
+            if (!continuePropagation) {
+                if (evt.stopPropagation) {
+                    evt.stopPropagation();
+                }
+                else {
+                    evt.cancelBubble = true;
+                }
+            }
+            return continuePropagation;
+        }
+
+        /**
+         * This function inserts the pagination links into the container element
+         */
+        function drawLinks() {
+            panel.empty();
+            var interval = getInterval();
+            var np = numPages();
+            // This helper function returns a handler function that calls pageSelected with the right page_id
+            var getClickHandler = function(page_id) {
+                return function(evt){ return pageSelected(page_id,evt); }
+            }
+            // Helper function for generating a single link (or a span tag if it'S the current page)
+            var appendItem = function(page_id, appendopts){
+                page_id = page_id<0?0:(page_id<np?page_id:np-1); // Normalize page id to sane value
+                appendopts = $.extend({text:page_id+1, classes:""}, appendopts||{});
+                if(page_id == current_page){
+                    var lnk = $("<span class='current'>"+(appendopts.text)+"</span>");
+                }
+                else
+                {
+                    var lnk = $("<a>"+(appendopts.text)+"</a>")
+                        .bind("click", getClickHandler(page_id))
+                        .attr('href', opts.link_to.replace(/__id__/,page_id));
+                }
+                if(appendopts.classes){lnk.addClass(appendopts.classes);}
+                panel.append(lnk);
+            }
+            // Generate "Previous"-Link
+            if(opts.prev_text && (current_page > 0 || opts.prev_show_always)){
+                appendItem(current_page-1,{text:opts.prev_text, classes:"prev"});
+            }
+            // Generate starting points
+            if (interval[0] > 0 && opts.num_edge_entries > 0)
+            {
+                var end = Math.min(opts.num_edge_entries, interval[0]);
+                for(var i=0; i<end; i++) {
+                    appendItem(i);
+                }
+                if(opts.num_edge_entries < interval[0] && opts.ellipse_text)
+                {
+                    $("<span>"+opts.ellipse_text+"</span>").appendTo(panel);
+                }
+            }
+            // Generate interval links
+            for(var i=interval[0]; i<interval[1]; i++) {
+                appendItem(i);
+            }
+            // Generate ending points
+            if (interval[1] < np && opts.num_edge_entries > 0)
+            {
+                if(np-opts.num_edge_entries > interval[1]&& opts.ellipse_text)
+                {
+                    $("<span>"+opts.ellipse_text+"</span>").appendTo(panel);
+                }
+                var begin = Math.max(np-opts.num_edge_entries, interval[1]);
+                for(var i=begin; i<np; i++) {
+                    appendItem(i);
+                }
+
+            }
+            // Generate "Next"-Link
+            if(opts.next_text && (current_page < np-1 || opts.next_show_always)){
+                appendItem(current_page+1,{text:opts.next_text, classes:"next"});
+            }
+        }
+
+        // Extract current_page from options
+        var current_page = opts.current_page;
+        // Create a sane value for maxentries and items_per_page
+        maxentries = (!maxentries || maxentries < 0)?1:maxentries;
+        opts.items_per_page = (!opts.items_per_page || opts.items_per_page < 0)?1:opts.items_per_page;
+        // Store DOM element for easy access from all inner functions
+        var panel = $(this);
+        // Attach control functions to the DOM element 
+        this.selectPage = function(page_id){ pageSelected(page_id);}
+        this.prevPage = function(){
+            if (current_page > 0) {
+                pageSelected(current_page - 1);
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+        this.nextPage = function(){
+            if(current_page < numPages()-1) {
+                pageSelected(current_page+1);
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+        // When all initialisation is done, draw the links
+        drawLinks();
+    });
+}
+})(jQuery);
 /* }}} */
 
 // vim: set foldmethod=marker

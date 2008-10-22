@@ -9,6 +9,12 @@
     <note priority="high" time="1222177279" done="1224518362">
         相册，日记页“离线”按钮的位置
     </note>
+    <note priority="high" time="1222224769" done="1224675207">
+        收藏翻页
+    </note>
+    <note priority="high" time="1222305766" done="1224518624">
+        添加评论和豆邮的标签
+    </note>
     <note priority="high" time="1222880159" done="1222880161">
         增加Douban Helper命令
     </note>
@@ -57,15 +63,6 @@
     <note priority="medium" time="1222011225" done="1222174663">
         不删除收藏，无法更新网页的BUG
     </note>
-    <note priority="high" time="1222224769">
-        收藏翻页
-    </note>
-    <note priority="high" time="1222305766" done="1224518624">
-        添加评论和豆邮的标签
-    </note>
-    <note priority="high" time="1224032468">
-        更友好的Gears安装提醒
-    </note>
     <note priority="medium" time="1221898814">
         自动更新收藏
     </note>
@@ -86,5 +83,11 @@
     </note>
     <note priority="medium" time="1222968256">
         提供API接口
+    </note>
+    <note priority="medium" time="1224032468">
+        更友好的Gears安装提醒
+    </note>
+    <note priority="medium" time="1224635705">
+        删除UNDO
     </note>
 </todo>

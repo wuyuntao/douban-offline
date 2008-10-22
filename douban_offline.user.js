@@ -737,7 +737,7 @@ function drawTypeList() {
 }
 
 function drawLinkTable(type, currentPage) {
-    var start = currentPage * itemsPerPage + 1;
+    var start = currentPage * itemsPerPage;
     var results = db.getByType(type, start, itemsPerPage);
     var table = $('#douban-offline-link-table');
     if (!table.length) {

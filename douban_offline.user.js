@@ -817,7 +817,7 @@ bean.createCommand({
     name : 'write',
     shortcut : 'w',
     description : '收藏离线页面',
-    hideConsoleAfterExecute : false,
+    hideConsoleAfterExecute : true,
     execute : function () {
         store.capturePage(document.title, location.href.toString(), true);
     }

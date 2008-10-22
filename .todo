@@ -63,14 +63,17 @@
     <note priority="medium" time="1222011225" done="1222174663">
         不删除收藏，无法更新网页的BUG
     </note>
-    <note priority="medium" time="1221898814">
-        自动更新收藏
+    <note priority="high" time="1221898869">
+        用Worker Pool取代iFrame方式抓取页面
     </note>
-    <note priority="medium" time="1221898862">
+    <note priority="high" time="1224696454">
         保存时的Loading，或进度条
     </note>
-    <note priority="medium" time="1221898869">
-        工作池的问题
+    <note priority="high" time="1224696548">
+        保存完毕后，刷新用户界面
+    </note>
+    <note priority="medium" time="1221898814">
+        自动更新收藏
     </note>
     <note priority="medium" time="1221898879">
         下拉菜单的显示问题

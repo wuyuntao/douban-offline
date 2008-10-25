@@ -822,6 +822,18 @@ bean.createCommand({
         store.capturePage(document.title, location.href.toString(), true);
     }
 });
+
+bean.createCommand({
+    scope: true,
+    name : 'doubanoffline',
+    shortcut : 'd',
+    description : '浏览你保存的离线页面',
+    hideConsoleAfterExecute : true,
+    execute : function () {
+        toggleOfflineStatus();
+    }
+});
+
 /* }}} */
 
 /* {{{ === Main entry ===  

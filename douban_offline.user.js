@@ -448,10 +448,15 @@ function initGears() {
     if (!unsafeWindow.google.gears) {
         try {
             unsafeWindow.google.gears = {};
+            // Work on Firefox 3
             unsafeWindow.google.gears.factory = unsafeWindow.GearsFactory();
-            // unsafeWindow.google.gears = { factory: new GearsFactory() };
         } catch(e) {
-            alert("Problem in initializing Gears. Please make sure you've installed Gears: " + e.message)
+            try {
+                // Work on Firefox 2
+                unsafeWindow.google.gears.factory = new unsafeWindow.GearsFactory();
+            } catch(e) {
+                alert("Problem in initializing Gears. Please make sure you've installed Gears: " + e.message)
+            }
         }
     }
     try {
@@ -826,7 +831,7 @@ bean.createCommand({
 bean.createCommand({
     scope: true,
     name : 'doubanoffline',
-    shortcut : 'd',
+    shortcut : 'do',
     description : '浏览你保存的离线页面',
     hideConsoleAfterExecute : true,
     execute : function () {
